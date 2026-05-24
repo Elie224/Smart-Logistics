@@ -22,6 +22,7 @@ class Settings(BaseSettings):
     mapbox_api_key: str = ""
     openai_api_key: str = ""
     gps_ingest_token: str = ""
+    ml_train_token: str = ""
 
     model_config = SettingsConfigDict(
         env_file=ROOT_DIR / ".env",

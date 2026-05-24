@@ -1,6 +1,7 @@
 import asyncio
 import json
 import os
+import subprocess
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Annotated
@@ -578,6 +579,43 @@ def reload_ml_model() -> dict:
     if ok:
         return {"status": "ok", "message": "Modèle rechargé avec succès."}
     return {"status": "unavailable", "message": "Aucun modèle trouvé."}
+
+
+@app.post(f"{settings.api_prefix}/predictions/ml-train")
+def train_ml_model(
+    x_train_token: Annotated[str | None, Header(alias="X-Train-Token")] = None,
+) -> dict:
+    """Entraîne le modèle puis le recharge (endpoint prévu pour un job planifié)."""
+    if not settings.ml_train_token:
+        raise HTTPException(status_code=503, detail="ML_TRAIN_TOKEN n'est pas configuré.")
+    if x_train_token != settings.ml_train_token:
+        raise HTTPException(status_code=401, detail="Invalid train token")
+
+    try:
+        proc = subprocess.run(
+            ["python", "/app/scripts/ml_trainer.py"],
+            capture_output=True,
+            text=True,
+            timeout=1800,
+            check=False,
+        )
+    except subprocess.TimeoutExpired as exc:
+        raise HTTPException(status_code=504, detail=f"Training timeout: {exc}") from exc
+
+    if proc.returncode != 0:
+        err = (proc.stderr or proc.stdout or "").strip()
+        raise HTTPException(status_code=500, detail=f"Training failed: {err[-1000:]}")
+
+    # Recharge le modèle si un modèle a bien été produit.
+    ml_predictor.reload_model()
+    meta = ml_predictor.get_model_meta()
+
+    return {
+        "status": "ok",
+        "message": "Training terminé.",
+        "meta": meta,
+        "train_log_tail": (proc.stdout or "")[-1200:],
+    }
 
 
 # ---------------------------------------------------------------------------
