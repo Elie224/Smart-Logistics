@@ -1,10 +1,10 @@
 """
 Pipeline ML — Prédiction de retard livraisons France (multi-villes).
 
-Modèle   : LightGBM (LGBMClassifier)
-Features : 20 features incl. encodage cyclique heure/jour/mois, météo, trafic, TC
-Data     : données réelles (vue ml_delivery_dataset) + 2500 exemples synthétiques
-Éval     : StratifiedKFold(5) cross-validation → AUC CV réaliste
+Modèle   : LightGBM calibré (sigmoid) après sélection CV
+Features : 21 features incl. encodage cyclique heure/jour/mois, météo, trafic, TC
+Data     : données réelles (vue ml_delivery_dataset) + données synthétiques
+Éval     : StratifiedKFold(5), AUC/PR-AUC/Brier
 
 Env vars :
     POSTGRES_HOST / PORT / DB / USER / PASSWORD
@@ -25,8 +25,14 @@ except ImportError:
 
 try:
     import lightgbm as lgb
-    from sklearn.model_selection import StratifiedKFold, cross_val_score
-    from sklearn.metrics import classification_report, roc_auc_score
+    from sklearn.calibration import CalibratedClassifierCV
+    from sklearn.model_selection import StratifiedKFold
+    from sklearn.metrics import (
+        average_precision_score,
+        brier_score_loss,
+        classification_report,
+        roc_auc_score,
+    )
     import joblib
 except ImportError:
     raise SystemExit("lightgbm, scikit-learn et joblib requis")
@@ -258,6 +264,49 @@ def generate_synthetic_data(n: int = 2500) -> tuple[list, list]:
     return X, y
 
 
+def build_sample_weights(n_real: int, y: np.ndarray) -> np.ndarray:
+    """Pondère les données réelles et corrige légèrement le déséquilibre de classes."""
+    weights = np.ones(len(y), dtype=float)
+
+    # Les données réelles sont rares: on augmente leur poids sans les surdominer.
+    real_weight = 6.0 if n_real > 0 else 1.0
+    weights[:n_real] *= real_weight
+
+    pos = max(int(y.sum()), 1)
+    neg = max(int((y == 0).sum()), 1)
+    pos_boost = min(3.0, neg / pos)
+    weights[y == 1] *= pos_boost
+    return weights
+
+
+def evaluate_cv(params: dict, X: np.ndarray, y: np.ndarray, weights: np.ndarray) -> dict:
+    """Évalue un set d'hyperparamètres via CV stratifiée."""
+    cv = StratifiedKFold(n_splits=5, shuffle=True, random_state=42)
+    auc_scores, ap_scores, brier_scores = [], [], []
+
+    for train_idx, val_idx in cv.split(X, y):
+        clf = lgb.LGBMClassifier(
+            **params,
+            objective="binary",
+            random_state=42,
+            n_jobs=1,
+            verbose=-1,
+        )
+        clf.fit(X[train_idx], y[train_idx], sample_weight=weights[train_idx])
+        prob = clf.predict_proba(X[val_idx])[:, 1]
+
+        auc_scores.append(roc_auc_score(y[val_idx], prob))
+        ap_scores.append(average_precision_score(y[val_idx], prob))
+        brier_scores.append(brier_score_loss(y[val_idx], prob))
+
+    return {
+        "auc_mean": float(np.mean(auc_scores)),
+        "auc_std": float(np.std(auc_scores)),
+        "ap_mean": float(np.mean(ap_scores)),
+        "brier_mean": float(np.mean(brier_scores)),
+    }
+
+
 # ---------------------------------------------------------------------------
 # Entraînement du modèle
 # ---------------------------------------------------------------------------
@@ -277,45 +326,96 @@ def train_model() -> tuple:
     print(f"[ML] {len(real_X)} exemples réels chargés.")
 
     # --- Données synthétiques ---
-    syn_X, syn_y = generate_synthetic_data(2500)
+    syn_X, syn_y = generate_synthetic_data(5000)
     print(f"[ML] {len(syn_X)} exemples synthétiques générés.")
 
     X = np.array(real_X + syn_X, dtype=float)
     y = np.array(real_y + syn_y, dtype=int)
+    weights = build_sample_weights(len(real_X), y)
 
     print(f"[ML] Dataset total : {len(X)} exemples "
           f"({int(y.sum())} retards / {int((y == 0).sum())} à l'heure)")
 
-    # --- Modèle LightGBM — paramètres anti-overfitting ---
-    clf = lgb.LGBMClassifier(
-        n_estimators=300,
-        max_depth=5,
-        learning_rate=0.05,
-        subsample=0.7,
-        colsample_bytree=0.7,
-        min_child_samples=20,
-        reg_lambda=1.0,
-        reg_alpha=0.1,
+    # --- Sélection d'hyperparamètres par CV ---
+    candidates = [
+        {
+            "n_estimators": 300,
+            "max_depth": 5,
+            "learning_rate": 0.05,
+            "subsample": 0.75,
+            "colsample_bytree": 0.75,
+            "min_child_samples": 25,
+            "reg_lambda": 1.0,
+            "reg_alpha": 0.1,
+        },
+        {
+            "n_estimators": 450,
+            "max_depth": 6,
+            "learning_rate": 0.035,
+            "subsample": 0.8,
+            "colsample_bytree": 0.8,
+            "min_child_samples": 30,
+            "reg_lambda": 1.2,
+            "reg_alpha": 0.2,
+        },
+        {
+            "n_estimators": 220,
+            "max_depth": 4,
+            "learning_rate": 0.07,
+            "subsample": 0.7,
+            "colsample_bytree": 0.7,
+            "min_child_samples": 20,
+            "reg_lambda": 0.9,
+            "reg_alpha": 0.05,
+        },
+    ]
+
+    best_params = None
+    best_metrics = None
+    best_score = -1.0
+
+    for idx, params in enumerate(candidates, start=1):
+        metrics = evaluate_cv(params, X, y, weights)
+        # Score composite orienté performance + calibration
+        score = metrics["auc_mean"] + 0.25 * metrics["ap_mean"] - 0.15 * metrics["brier_mean"]
+        print(
+            f"[ML] Candidate #{idx} -> "
+            f"AUC={metrics['auc_mean']:.3f}±{metrics['auc_std']:.3f}, "
+            f"PR-AUC={metrics['ap_mean']:.3f}, Brier={metrics['brier_mean']:.3f}"
+        )
+        if score > best_score:
+            best_score = score
+            best_params = params
+            best_metrics = metrics
+
+    print(
+        f"[ML] Best params sélectionnés -> "
+        f"AUC CV: {best_metrics['auc_mean']:.3f} ± {best_metrics['auc_std']:.3f}, "
+        f"PR-AUC: {best_metrics['ap_mean']:.3f}, Brier: {best_metrics['brier_mean']:.3f}"
+    )
+
+    # --- Entraînement final + calibration probabiliste ---
+    base_clf = lgb.LGBMClassifier(
+        **best_params,
+        objective="binary",
         random_state=42,
         n_jobs=1,
         verbose=-1,
     )
+    base_clf.fit(X, y, sample_weight=weights)
 
-    # --- Cross-validation 5-fold stratifiée (AUC réel) ---
-    cv = StratifiedKFold(n_splits=5, shuffle=True, random_state=42)
-    cv_scores = cross_val_score(clf, X, y, cv=cv, scoring="roc_auc", n_jobs=1)
-    cv_auc_mean = float(np.mean(cv_scores))
-    cv_auc_std  = float(np.std(cv_scores))
-    print(f"[ML] AUC CV (5-fold) : {cv_auc_mean:.3f} ± {cv_auc_std:.3f}")
-
-    # --- Entraînement final sur tout le dataset ---
-    clf.fit(X, y)
+    clf = CalibratedClassifierCV(estimator=base_clf, method="sigmoid", cv=5)
+    clf.fit(X, y, sample_weight=weights)
 
     y_pred = clf.predict(X)
     y_prob = clf.predict_proba(X)[:, 1]
     auc_train = roc_auc_score(y, y_prob)
+    pr_auc_train = average_precision_score(y, y_prob)
+    brier_train = brier_score_loss(y, y_prob)
 
     print(f"[ML] AUC (train complet) : {auc_train:.3f}")
+    print(f"[ML] PR-AUC (train complet) : {pr_auc_train:.3f}")
+    print(f"[ML] Brier (train complet) : {brier_train:.3f}")
     print(classification_report(y, y_pred, target_names=["ON_TIME", "DELAYED"]))
 
     delayed_pct = round(float(y.sum()) / len(y) * 100, 1)
@@ -325,10 +425,10 @@ def train_model() -> tuple:
     joblib.dump(clf, MODEL_PATH)
     print(f"\n[ML] Modèle sauvegardé → {MODEL_PATH}")
 
-    # Importance des features (normalisée)
+    # Importance des features (modèle de base LightGBM)
     importances = dict(zip(
         FEATURES,
-        [round(float(v), 4) for v in clf.feature_importances_]
+        [round(float(v), 4) for v in base_clf.feature_importances_]
     ))
 
     meta = {
@@ -337,9 +437,16 @@ def train_model() -> tuple:
         "n_real":               len(real_X),
         "n_synthetic":          len(syn_X),
         "n_total":              len(X),
+        "real_weight":          6.0 if len(real_X) > 0 else 1.0,
         "auc_train":            round(auc_train, 4),
-        "cv_auc_mean":          round(cv_auc_mean, 4),
-        "cv_auc_std":           round(cv_auc_std, 4),
+        "pr_auc_train":         round(pr_auc_train, 4),
+        "brier_train":          round(brier_train, 4),
+        "cv_auc_mean":          round(best_metrics["auc_mean"], 4),
+        "cv_auc_std":           round(best_metrics["auc_std"], 4),
+        "cv_pr_auc_mean":       round(best_metrics["ap_mean"], 4),
+        "cv_brier_mean":        round(best_metrics["brier_mean"], 4),
+        "calibration":          "sigmoid",
+        "selected_params":      best_params,
         "delayed_pct":          delayed_pct,
         "feature_importances":  importances,
         "trained_at":           datetime.now(timezone.utc).isoformat(),
