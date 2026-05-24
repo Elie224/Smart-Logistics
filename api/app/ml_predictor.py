@@ -67,6 +67,56 @@ def get_model_meta() -> dict:
         return {"status": "error", "message": str(exc)}
 
 
+def _clip01(x: float) -> float:
+    return max(0.0, min(1.0, x))
+
+
+def _heuristic_probability(
+    departure_hour: int,
+    departure_dow: int,
+    temperature: float,
+    wind_speed: float,
+    traffic_delay_s: float,
+    transit_disruptions: int,
+    transit_blocking: int,
+    transit_enc: int,
+    route_duration_s: float,
+) -> float:
+    """Score métier déterministe pour stabiliser les prédictions en faible-data."""
+    p = 0.14
+
+    is_weekend = departure_dow >= 5
+    is_rush = (7 <= departure_hour <= 9 or 17 <= departure_hour <= 19) and not is_weekend
+    is_night = departure_hour < 6 or departure_hour >= 22
+
+    if is_rush:
+        p += 0.16
+    if is_night:
+        p += 0.05
+    if wind_speed > 10:
+        p += 0.08
+    if temperature < 5:
+        p += 0.06
+    if temperature < 0:
+        p += 0.07
+    if traffic_delay_s > 300:
+        p += 0.16
+    if traffic_delay_s > 600:
+        p += 0.10
+    if transit_disruptions >= 2:
+        p += 0.05
+    if transit_blocking > 0:
+        p += 0.12
+    if transit_enc == 1:
+        p += 0.05
+    if transit_enc == 2:
+        p += 0.10
+    if route_duration_s > 7200:
+        p += 0.07
+
+    return _clip01(p)
+
+
 def predict_delay_risk(
     departure_hour:      int,
     departure_dow:       int,
@@ -122,14 +172,43 @@ def predict_delay_risk(
     ]], dtype=float)
 
     try:
-        prob = float(clf.predict_proba(X)[0][1])
+        ml_prob = float(clf.predict_proba(X)[0][1])
     except Exception as exc:
         print(f"[ML] Erreur prédiction (modèle obsolète?) : {exc}")
         return None
 
-    if prob > 0.60:
+    meta = get_model_meta()
+    n_real = int(meta.get("n_real", 0)) if isinstance(meta, dict) else 0
+    cv_auc = float(meta.get("cv_auc_mean", 0.0)) if isinstance(meta, dict) else 0.0
+
+    heuristic_prob = _heuristic_probability(
+        departure_hour=departure_hour,
+        departure_dow=departure_dow,
+        temperature=float(temperature),
+        wind_speed=float(wind_speed),
+        traffic_delay_s=float(traffic_delay_s),
+        transit_disruptions=int(transit_disruptions),
+        transit_blocking=int(transit_blocking),
+        transit_enc=transit_enc,
+        route_duration_s=float(route_duration_s),
+    )
+
+    # Faible historique réel -> on réduit le poids du modèle pur.
+    if n_real < 20:
+        alpha = 0.35
+    elif n_real < 100:
+        alpha = 0.5
+    else:
+        alpha = 0.7
+
+    if cv_auc < 0.62:
+        alpha = max(0.25, alpha - 0.15)
+
+    prob = _clip01(alpha * ml_prob + (1.0 - alpha) * heuristic_prob)
+
+    if prob > 0.65:
         risk_level = "HIGH"
-    elif prob > 0.35:
+    elif prob > 0.40:
         risk_level = "MEDIUM"
     else:
         risk_level = "LOW"
@@ -155,6 +234,9 @@ def predict_delay_risk(
     if float(route_duration_s) > 7200:
         risk_factors.append(f"Long trajet ({int(route_duration_s / 3600):.0f}h)")
 
+    if n_real < 20:
+        risk_factors.append("Confiance ML limitée (historique réel faible)")
+
     recommendation = (
         "Reporter ou anticiper le départ." if risk_level == "HIGH"
         else "Surveiller attentivement." if risk_level == "MEDIUM"
@@ -163,6 +245,9 @@ def predict_delay_risk(
 
     return {
         "delay_probability": round(prob, 3),
+        "ml_probability": round(ml_prob, 3),
+        "heuristic_probability": round(heuristic_prob, 3),
+        "model_weight": round(alpha, 2),
         "risk_level":        risk_level,
         "risk_factors":      risk_factors,
         "recommendation":    recommendation,
