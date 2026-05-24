@@ -133,11 +133,9 @@ def predict_delay_risk(
 
     Returns:
         dict avec delay_probability, risk_level, risk_factors
-        None si le modèle n'est pas disponible
+        (fallback heuristique si le modèle n'est pas disponible)
     """
     clf = _load_model()
-    if clf is None:
-        return None
 
     # ── Feature engineering (identique au trainer) ──
     now         = datetime.now(timezone.utc)
@@ -171,12 +169,6 @@ def predict_delay_risk(
         float(route_duration_s),
     ]], dtype=float)
 
-    try:
-        ml_prob = float(clf.predict_proba(X)[0][1])
-    except Exception as exc:
-        print(f"[ML] Erreur prédiction (modèle obsolète?) : {exc}")
-        return None
-
     meta = get_model_meta()
     n_real = int(meta.get("n_real", 0)) if isinstance(meta, dict) else 0
     cv_auc = float(meta.get("cv_auc_mean", 0.0)) if isinstance(meta, dict) else 0.0
@@ -193,18 +185,32 @@ def predict_delay_risk(
         route_duration_s=float(route_duration_s),
     )
 
-    # Faible historique réel -> on réduit le poids du modèle pur.
-    if n_real < 20:
-        alpha = 0.35
-    elif n_real < 100:
-        alpha = 0.5
+    ml_prob = None
+    alpha = 0.0
+
+    if clf is not None:
+        try:
+            ml_prob = float(clf.predict_proba(X)[0][1])
+        except Exception as exc:
+            print(f"[ML] Erreur prédiction (modèle obsolète?) : {exc}")
+            ml_prob = None
+
+    if ml_prob is not None:
+        # Faible historique réel -> on réduit le poids du modèle pur.
+        if n_real < 20:
+            alpha = 0.35
+        elif n_real < 100:
+            alpha = 0.5
+        else:
+            alpha = 0.7
+
+        if cv_auc < 0.62:
+            alpha = max(0.25, alpha - 0.15)
+
+        prob = _clip01(alpha * ml_prob + (1.0 - alpha) * heuristic_prob)
     else:
-        alpha = 0.7
-
-    if cv_auc < 0.62:
-        alpha = max(0.25, alpha - 0.15)
-
-    prob = _clip01(alpha * ml_prob + (1.0 - alpha) * heuristic_prob)
+        # Fallback 100% réel (trafic/TC/météo) si modèle indisponible.
+        prob = heuristic_prob
 
     if prob > 0.65:
         risk_level = "HIGH"
@@ -236,6 +242,8 @@ def predict_delay_risk(
 
     if n_real < 20:
         risk_factors.append("Confiance ML limitée (historique réel faible)")
+    if ml_prob is None:
+        risk_factors.append("Mode estimation réelle sans modèle entraîné")
 
     recommendation = (
         "Reporter ou anticiper le départ." if risk_level == "HIGH"
@@ -245,7 +253,7 @@ def predict_delay_risk(
 
     return {
         "delay_probability": round(prob, 3),
-        "ml_probability": round(ml_prob, 3),
+        "ml_probability": round(ml_prob, 3) if ml_prob is not None else None,
         "heuristic_probability": round(heuristic_prob, 3),
         "model_weight": round(alpha, 2),
         "risk_level":        risk_level,

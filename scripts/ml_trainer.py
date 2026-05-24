@@ -45,6 +45,10 @@ MODELS_DIR = os.getenv("MODELS_DIR", "/app/models")
 MODEL_PATH = os.path.join(MODELS_DIR, "delay_model.pkl")
 META_PATH  = os.path.join(MODELS_DIR, "delay_model_meta.json")
 
+ALLOW_SYNTHETIC = os.getenv("ALLOW_SYNTHETIC", "false").lower() in ("1", "true", "yes")
+SYNTHETIC_SAMPLES = int(os.getenv("SYNTHETIC_SAMPLES", "5000")) if ALLOW_SYNTHETIC else 0
+MIN_REAL_FOR_TRAIN = int(os.getenv("MIN_REAL_FOR_TRAIN", "30"))
+
 TRANSIT_STATUS_MAP = {"NORMAL": 0, "REDUCED": 1, "DISRUPTED": 2}
 
 FEATURES = [
@@ -326,8 +330,27 @@ def train_model() -> tuple:
     print(f"[ML] {len(real_X)} exemples réels chargés.")
 
     # --- Données synthétiques ---
-    syn_X, syn_y = generate_synthetic_data(5000)
-    print(f"[ML] {len(syn_X)} exemples synthétiques générés.")
+    syn_X, syn_y = [], []
+    if ALLOW_SYNTHETIC and SYNTHETIC_SAMPLES > 0:
+        syn_X, syn_y = generate_synthetic_data(SYNTHETIC_SAMPLES)
+        print(f"[ML] {len(syn_X)} exemples synthétiques générés.")
+    else:
+        print("[ML] Mode réel strict: données synthétiques désactivées.")
+
+    if len(real_X) < MIN_REAL_FOR_TRAIN and not ALLOW_SYNTHETIC:
+        meta = {
+            "status": "insufficient_real_data",
+            "message": f"Données réelles insuffisantes ({len(real_X)}). Minimum requis: {MIN_REAL_FOR_TRAIN}.",
+            "n_real": len(real_X),
+            "n_synthetic": 0,
+            "n_total": len(real_X),
+            "trained_at": datetime.now(timezone.utc).isoformat(),
+        }
+        with open(META_PATH, "w") as f:
+            json.dump(meta, f, indent=2)
+        print(f"[ML] {meta['message']}")
+        print("[ML] Entraînement ignoré (mode réel strict).")
+        return None, meta
 
     X = np.array(real_X + syn_X, dtype=float)
     y = np.array(real_y + syn_y, dtype=int)
