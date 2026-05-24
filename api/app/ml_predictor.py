@@ -57,14 +57,67 @@ def reload_model():
 
 
 def get_model_meta() -> dict:
-    """Retourne les métadonnées du modèle entraîné."""
+    """Retourne les métadonnées du modèle avec un schéma stable."""
+    defaults = {
+        "status": "unknown",
+        "message": "",
+        "model_type": None,
+        "features": [],
+        "n_real": 0,
+        "n_synthetic": 0,
+        "n_total": 0,
+        "real_weight": None,
+        "auc_train": None,
+        "pr_auc_train": None,
+        "brier_train": None,
+        "cv_auc_mean": None,
+        "cv_auc_std": None,
+        "cv_pr_auc_mean": None,
+        "cv_brier_mean": None,
+        "calibration": None,
+        "selected_params": {},
+        "delayed_pct": None,
+        "feature_importances": {},
+        "coefficients": {},
+        "trained_at": None,
+    }
+
     try:
         with open(META_PATH) as f:
-            return json.load(f)
+            raw = json.load(f)
+
+        if not isinstance(raw, dict):
+            return {
+                **defaults,
+                "status": "error",
+                "message": "Format de métadonnées invalide.",
+            }
+
+        merged = {**defaults, **raw}
+        if not merged.get("status"):
+            merged["status"] = "ok"
+
+        # Garantit des structures attendues côté UI.
+        if not isinstance(merged.get("feature_importances"), dict):
+            merged["feature_importances"] = {}
+        if not isinstance(merged.get("coefficients"), dict):
+            merged["coefficients"] = {}
+        if not isinstance(merged.get("features"), list):
+            merged["features"] = []
+
+        return merged
     except FileNotFoundError:
-        return {"status": "not_trained", "message": "Modèle pas encore entraîné."}
+        return {
+            **defaults,
+            "status": "not_trained",
+            "message": "Modèle pas encore entraîné.",
+        }
     except Exception as exc:
-        return {"status": "error", "message": str(exc)}
+        return {
+            **defaults,
+            "status": "error",
+            "message": str(exc),
+        }
 
 
 def _clip01(x: float) -> float:
