@@ -1,0 +1,111 @@
+{
+  "id": "11",
+  "name": "Transit Ingestion Every 30 Minutes - 5 Cities",
+  "nodes": [
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "minutes",
+              "minutesInterval": 30
+            }
+          ]
+        }
+      },
+      "id": "1",
+      "name": "Cron Trigger",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.2,
+      "position": [220, 300]
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "const apiKey = $env.NAVITIA_API_KEY;\nconst encoded = Buffer.from(apiKey + ':').toString('base64');\nconst cities = [\n  { city: 'Paris',     region_id: 'fr-idf' },\n  { city: 'Lille',     region_id: 'fr-hdf' }\n];\nreturn cities.map(c => ({ json: { ...c, auth_header: 'Basic ' + encoded } }));"
+      },
+      "id": "2",
+      "name": "Prepare Cities",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [460, 300]
+    },
+    {
+      "parameters": {
+        "method": "GET",
+        "url": "={{ 'https://api.navitia.io/v1/coverage/' + $json.region_id + '/disruptions?count=50&start_page=0' }}",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Authorization",
+              "value": "={{ $json.auth_header }}"
+            }
+          ]
+        },
+        "options": {
+          "response": {
+            "response": {
+              "neverError": true
+            }
+          }
+        }
+      },
+      "id": "3",
+      "name": "Navitia Disruptions API",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [720, 300]
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForEachItem",
+        "jsCode": "const city = $('Prepare Cities').item.json.city;\nconst region_id = $('Prepare Cities').item.json.region_id;\nconst disruptions = ($json.disruptions) || [];\nconst blocking = disruptions.filter(d => d.severity && d.severity.effect === 'NO_SERVICE').length;\nconst reduced  = disruptions.filter(d => d.severity && d.severity.effect === 'REDUCED_SERVICE').length;\nconst total = disruptions.length;\nlet network_status = 'NORMAL';\nif (blocking > 0) network_status = 'DISRUPTED';\nelse if (reduced > 0 || total > 3) network_status = 'REDUCED';\nconst most_severe = disruptions.find(d => d.severity && d.severity.effect === 'NO_SERVICE') || disruptions[0];\nconst most_severe_message = (most_severe && most_severe.messages && most_severe.messages[0])\n  ? most_severe.messages[0].text : null;\nreturn [{ json: { city, region_id, total_disruptions: total, blocking_disruptions: blocking, network_status, most_severe_message, raw_payload: $json } }];"
+      },
+      "id": "4",
+      "name": "Process Disruptions",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [980, 300]
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "INSERT INTO transit_data (city, region_id, total_disruptions, blocking_disruptions, network_status, most_severe_message, raw_payload) VALUES ($1, $2, $3, $4, $5, $6, $7::jsonb);",
+        "options": {
+          "queryReplacement": "={{ [$json.city, $json.region_id, $json.total_disruptions, $json.blocking_disruptions, $json.network_status, $json.most_severe_message, JSON.stringify($json.raw_payload)] }}"
+        }
+      },
+      "id": "5",
+      "name": "Store Transit In PostgreSQL",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.6,
+      "position": [1240, 300],
+      "credentials": {
+        "postgres": {
+          "id": "7e02c4a3-d32d-4de2-8226-8cabadeb714c",
+          "name": "Postgres Smart Logistics"
+        }
+      }
+    }
+  ],
+  "connections": {
+    "Cron Trigger": {
+      "main": [[{"node": "Prepare Cities", "type": "main", "index": 0}]]
+    },
+    "Prepare Cities": {
+      "main": [[{"node": "Navitia Disruptions API", "type": "main", "index": 0}]]
+    },
+    "Navitia Disruptions API": {
+      "main": [[{"node": "Process Disruptions", "type": "main", "index": 0}]]
+    },
+    "Process Disruptions": {
+      "main": [[{"node": "Store Transit In PostgreSQL", "type": "main", "index": 0}]]
+    }
+  },
+  "pinData": {},
+  "settings": {"executionOrder": "v1"},
+  "staticData": null,
+  "meta": {"templateCredsSetupCompleted": false},
+  "tags": []
+}

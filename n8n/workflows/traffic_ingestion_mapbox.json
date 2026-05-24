@@ -1,0 +1,119 @@
+{
+  "id": "9",
+  "name": "Traffic Ingestion Every 30 Minutes",
+  "nodes": [
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "minutes",
+              "minutesInterval": 30
+            }
+          ]
+        }
+      },
+      "id": "1",
+      "name": "Cron Trigger",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.2,
+      "position": [240, 300]
+    },
+    {
+      "parameters": {
+        "jsCode": "// Axes de circulation urbains surveillés pour les opérations logistiques\n// Paris : 2 corridors de livraison urbains\n// Lille : 2 corridors de livraison urbains\nreturn [\n  {\n    json: {\n      city: 'Paris',\n      route_name: 'Paris - Périphérique Nord',\n      lon1: 2.3522, lat1: 48.8929,\n      lon2: 2.4390, lat2: 48.8481\n    }\n  },\n  {\n    json: {\n      city: 'Paris',\n      route_name: 'Paris - Axe La Défense → Nation',\n      lon1: 2.2382, lat1: 48.8921,\n      lon2: 2.3954, lat2: 48.8484\n    }\n  },\n  {\n    json: {\n      city: 'Lille',\n      route_name: 'Lille - Grand Boulevard',\n      lon1: 3.1789, lat1: 50.6942,\n      lon2: 3.0544, lat2: 50.6282\n    }\n  },\n  {\n    json: {\n      city: 'Lille',\n      route_name: \"Lille - Centre vers Villeneuve-d'Ascq\",\n      lon1: 3.0544, lat1: 50.6282,\n      lon2: 3.1417, lat2: 50.6175\n    }\n  }\n];"
+      },
+      "id": "2",
+      "name": "Define City Routes",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [500, 300]
+    },
+    {
+      "parameters": {
+        "method": "GET",
+        "url": "=https://api.mapbox.com/directions/v5/mapbox/driving-traffic/{{ $json.lon1 }},{{ $json.lat1 }};{{ $json.lon2 }},{{ $json.lat2 }}",
+        "sendQuery": true,
+        "queryParameters": {
+          "parameters": [
+            {
+              "name": "access_token",
+              "value": "={{$env.MAPBOX_API_KEY}}"
+            },
+            {
+              "name": "annotations",
+              "value": "duration,distance,speed"
+            },
+            {
+              "name": "overview",
+              "value": "full"
+            },
+            {
+              "name": "steps",
+              "value": "false"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "3",
+      "name": "Mapbox Traffic API",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [760, 300]
+    },
+    {
+      "parameters": {
+        "jsCode": "// Fusionne les métadonnées de route avec la réponse Mapbox\nconst routeMeta = $('Define City Routes').item.json;\nconst apiResp   = $json;\n\nconst route   = (apiResp.routes || [])[0] || {};\nconst dur     = route.duration         || 0;\nconst durTyp  = route.duration_typical || dur;\n\nreturn [{\n  json: {\n    city:                     routeMeta.city,\n    route_name:               routeMeta.route_name,\n    origin_latitude:          routeMeta.lat1,\n    origin_longitude:         routeMeta.lon1,\n    destination_latitude:     routeMeta.lat2,\n    destination_longitude:    routeMeta.lon2,\n    distance_meters:          route.distance || 0,\n    duration_seconds:         dur,\n    duration_typical_seconds: durTyp,\n    delay_seconds:            dur - durTyp,\n    raw_payload:              JSON.stringify(apiResp)\n  }\n}];"
+      },
+      "id": "4",
+      "name": "Build DB Payload",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [1020, 300]
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "INSERT INTO traffic_data (city, route_name, origin_latitude, origin_longitude, destination_latitude, destination_longitude, distance_meters, duration_seconds, duration_typical_seconds, delay_seconds, raw_payload) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11::jsonb);",
+        "options": {
+          "queryReplacement": "={{ [$json.city, $json.route_name, $json.origin_latitude, $json.origin_longitude, $json.destination_latitude, $json.destination_longitude, $json.distance_meters, $json.duration_seconds, $json.duration_typical_seconds, $json.delay_seconds, $json.raw_payload] }}"
+        }
+      },
+      "id": "5",
+      "name": "Store Traffic In PostgreSQL",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.6,
+      "position": [1280, 300],
+      "credentials": {
+        "postgres": {
+          "id": "7e02c4a3-d32d-4de2-8226-8cabadeb714c",
+          "name": "Postgres Smart Logistics"
+        }
+      }
+    }
+  ],
+  "connections": {
+    "Cron Trigger": {
+      "main": [[{ "node": "Define City Routes", "type": "main", "index": 0 }]]
+    },
+    "Define City Routes": {
+      "main": [[{ "node": "Mapbox Traffic API", "type": "main", "index": 0 }]]
+    },
+    "Mapbox Traffic API": {
+      "main": [[{ "node": "Build DB Payload", "type": "main", "index": 0 }]]
+    },
+    "Build DB Payload": {
+      "main": [[{ "node": "Store Traffic In PostgreSQL", "type": "main", "index": 0 }]]
+    }
+  },
+  "pinData": {},
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "staticData": null,
+  "meta": {
+    "templateCredsSetupCompleted": false
+  },
+  "tags": []
+}

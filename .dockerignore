@@ -1,0 +1,9 @@
+.git
+.venv
+__pycache__
+*.pyc
+postgres_data
+pgadmin_data
+n8n_data
+metabase_data
+.env

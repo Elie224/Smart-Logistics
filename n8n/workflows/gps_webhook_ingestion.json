@@ -1,0 +1,165 @@
+{
+  "id": "10",
+  "name": "GPS Webhook Ingestion",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "gps-tracking",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "id": "1",
+      "name": "GPS Webhook",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [
+        240,
+        300
+      ],
+      "webhookId": "smart-logistics-gps"
+    },
+    {
+      "parameters": {
+        "mode": "manual",
+        "assignments": {
+          "assignments": [
+            {
+              "id": "vehicle_id",
+              "name": "vehicle_id",
+              "type": "number",
+              "value": "={{$json.body.vehicle_id}}"
+            },
+            {
+              "id": "latitude",
+              "name": "latitude",
+              "type": "number",
+              "value": "={{$json.body.latitude}}"
+            },
+            {
+              "id": "longitude",
+              "name": "longitude",
+              "type": "number",
+              "value": "={{$json.body.longitude}}"
+            },
+            {
+              "id": "speed",
+              "name": "speed",
+              "type": "number",
+              "value": "={{$json.body.speed}}"
+            },
+            {
+              "id": "heading",
+              "name": "heading",
+              "type": "number",
+              "value": "={{$json.body.heading}}"
+            },
+            {
+              "id": "status",
+              "name": "status",
+              "type": "string",
+              "value": "={{$json.body.status || 'IN_TRANSIT'}}"
+            },
+            {
+              "id": "raw_payload",
+              "name": "raw_payload",
+              "type": "json",
+              "value": "={{$json.body}}"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "2",
+      "name": "Set GPS Payload",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        520,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "INSERT INTO gps_tracking (vehicle_id, latitude, longitude, speed, heading, status, raw_payload) VALUES ($1, $2, $3, $4, $5, $6, $7::jsonb);",
+        "options": {
+          "queryReplacement": "={{ [$json.vehicle_id, $json.latitude, $json.longitude, $json.speed, $json.heading, $json.status, JSON.stringify($json.raw_payload)] }}"
+        }
+      },
+      "id": "3",
+      "name": "Store GPS In PostgreSQL",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.6,
+      "position": [
+        800,
+        300
+      ],
+      "credentials": {
+        "postgres": {
+          "id": "7e02c4a3-d32d-4de2-8226-8cabadeb714c",
+          "name": "Postgres Smart Logistics"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={\n  \"status\": \"ok\",\n  \"vehicle_id\": $json.vehicle_id,\n  \"received_at\": $now\n}",
+        "options": {}
+      },
+      "id": "4",
+      "name": "Webhook Response",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1,
+      "position": [
+        1080,
+        300
+      ]
+    }
+  ],
+  "connections": {
+    "GPS Webhook": {
+      "main": [
+        [
+          {
+            "node": "Set GPS Payload",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Set GPS Payload": {
+      "main": [
+        [
+          {
+            "node": "Store GPS In PostgreSQL",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Store GPS In PostgreSQL": {
+      "main": [
+        [
+          {
+            "node": "Webhook Response",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "pinData": {},
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "staticData": null,
+  "meta": {
+    "templateCredsSetupCompleted": false
+  },
+  "tags": []
+}

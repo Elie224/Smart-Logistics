@@ -1,0 +1,270 @@
+Les données doivent être collectées depuis plusieurs sources réelles ou simulées.
+Dans ton projet Transport & Logistique, tu vas construire un système qui récupère des données en continu depuis des APIs, des capteurs GPS, des formulaires ou des applications.
+
+![Image](https://images.openai.com/static-rsc-4/tVnMyaPjxYBtEfKzT4zSw2MEe6l8Ung0509XYnvuc1OuYp5ruW9s-a0_3UYtzFp6chvg1c37kkiAjcWlBlfo_9q8xeQYQzQ1XxJX5QDxn_43S9l-LzhDS7UTKjSf84nkxRm4cdFjfVLQj27zhZRy6m9b0XC0dr-5s3OElJF0kQQx6mWeAVFI1EBSIh9cRT8r?purpose=fullsize)
+
+![Image](https://images.openai.com/static-rsc-4/rskNI8xNwofW-dJy6VzcAzs18mkMmVPQXxdjeypWFBNCfswTEgFSfpmhRyGFcupePUntIe1KxZ9shKTiQ4FI4S5PEjRoj5qXR1dPaH6KSukWtjWiL1OF-RhUIbnFJQjwnVTl0RdLKqSMGz3CbsIMjzUG0xrLZM2SG0eo6hDhZa4dc9PB6gKDPosJFFDga8j-?purpose=fullsize)
+
+![Image](https://images.openai.com/static-rsc-4/5sa8RZ0gX6scM04yNju0aQXIqtnEpzYlTAS72PmVFYkVNuH6AHBrRqLM8dqwf3ZFhUTcVMJ0q1fi-FQvk9vYyE5zcPnWp0lH-d_v8PJdzL-108q6LISJGJ7tPOLT-VjHwK11pLOq53wRTPfaNxIRJdWcVbrUFc3xqnKGZACl4lkx-lFV4OBJWw2-gaZVvgoF?purpose=fullsize)
+
+![Image](https://images.openai.com/static-rsc-4/96TzjENngDEBbzt21e9tOBGHEpeY_YoUlJcOnloB-iSId9R0EZsTHMEe9RkeWlyIuC3Tmiu5Vw3LDeU3UMMrDMHT33IaDcwe6e0bH9JXM_SnfbaUNHdGoOgsIKuiOChnmxsw8FQUgtuUrh3Uiv-RSMkis9VA3DFsaUm1I00T2gxjerWCKjclaXKmk2UtMsJb?purpose=fullsize)
+
+![Image](https://images.openai.com/static-rsc-4/fFuECrdGKB03boxcDrFthzTbe755dKYVzrEnM6XzrwcQXov3-ekEweB_xREnWTE9D3RwP3IZNIoAyCF3J_RkiQTy1At-h_XBJFpmHNQj3mU88V_LDeucVtSjGo3D0XmIuttXcOBBkEvSMzCPNsjT3l64sJxoq0tYKUu72AflHMB5HYGSWwC4qbWgmUXHK_Wy?purpose=fullsize)
+
+![Image](https://images.openai.com/static-rsc-4/j3AI88fCcD8RzP06Gp8fYmKfVF_LeoJLJanNWmax29JZMbfQqHDFNfPFjSphlhOCo_cMDG6acRnFPlhBe4MYpKxCvh7Nzy7pBpCxB9YZDxuUOYEhX94-zzqb2jXP1phHDxOjYg_j9uWb22nn0lA-k97XBwR4q2SJPKo158QNzyV4GEFrf78O1QCiH0iWz-zv?purpose=fullsize)
+
+# Où collecter les données ?
+
+# 1. APIs externes (le plus important)
+
+## A. API météo
+
+Tu récupères :
+
+* température,
+* pluie,
+* humidité,
+* vent.
+
+### Pourquoi ?
+
+La météo influence :
+
+* les retards,
+* les accidents,
+* les délais.
+
+## APIs
+
+* [OpenWeather API](https://openweathermap.org/api?utm_source=chatgpt.com)
+* [WeatherAPI](https://www.weatherapi.com?utm_source=chatgpt.com)
+
+---
+
+# 2. APIs trafic et cartes
+
+Tu récupères :
+
+* trafic,
+* temps de trajet,
+* routes fermées,
+* distance.
+
+## APIs
+
+* [Google Maps Platform](https://developers.google.com/maps?utm_source=chatgpt.com)
+* [Mapbox](https://www.mapbox.com?utm_source=chatgpt.com)
+
+---
+
+# 3. GPS des véhicules
+
+## Données collectées
+
+```text id="p1l84o"
+latitude
+longitude
+vitesse
+heure
+direction
+```
+
+---
+
+# Comment récupérer ces données ?
+
+## Option 1 — Simulation GPS (recommandé au début)
+
+Tu crées un script Python qui envoie :
+
+```json id="ubm3zi"
+{
+  "vehicle_id": 1,
+  "latitude": 45.7640,
+  "longitude": 4.8357,
+  "speed": 72
+}
+```
+
+vers :
+
+* un webhook n8n,
+* ou une API FastAPI.
+
+---
+
+## Option 2 — Application mobile
+
+Ton application mobile envoie :
+
+* position GPS,
+* vitesse,
+* statut véhicule.
+
+---
+
+# 4. Données métier internes
+
+Tu peux aussi créer :
+
+* commandes,
+* clients,
+* chauffeurs,
+* livraisons.
+
+Ces données viennent :
+
+* d’un formulaire web,
+* d’une application React,
+* d’une API.
+
+---
+
+# 5. Données simulées (très important pour débuter)
+
+Au début, les entreprises font souvent des simulations.
+
+Tu peux générer automatiquement :
+
+* livraisons,
+* trajets,
+* retards,
+* positions GPS.
+
+Avec Python :
+
+```python id="n7cg0w"
+import random
+```
+
+Tu peux produire :
+
+* 1000 livraisons,
+* 500 trajets,
+* données temps réel.
+
+---
+
+# Architecture de collecte
+
+```text id="0wgrh2"
+APIs externes
+(météo, trafic)
+        ↓
+n8n
+        ↓
+PostgreSQL
+
+GPS véhicules
+        ↓
+Webhook/API
+        ↓
+PostgreSQL
+
+Application Web
+        ↓
+API FastAPI
+        ↓
+PostgreSQL
+```
+
+---
+
+# Ce que n8n va faire
+
+Avec [n8n](https://n8n.io?utm_source=chatgpt.com) :
+
+## Toutes les 5 minutes
+
+```text id="6r4qq4"
+n8n appelle OpenWeather API
+        ↓
+Récupère météo Lyon
+        ↓
+Transforme JSON
+        ↓
+Stocke SQL
+```
+
+---
+
+# Collecte temps réel GPS
+
+```text id="ol9crk"
+Camion / simulation GPS
+        ↓
+Webhook n8n
+        ↓
+PostgreSQL
+        ↓
+Metabase dashboard live
+```
+
+---
+
+# Pourquoi cette architecture est professionnelle
+
+Parce que tu reproduis un vrai pipeline data utilisé dans :
+
+* [Uber Freight](https://www.uberfreight.com?utm_source=chatgpt.com)
+* [DHL](https://www.dhl.com?utm_source=chatgpt.com)
+* [FedEx](https://www.fedex.com?utm_source=chatgpt.com)
+* [SAP](https://www.sap.com?utm_source=chatgpt.com)
+
+---
+
+# Mon conseil pour commencer
+
+## Phase 1 (simple)
+
+Collecte :
+
+* météo API,
+* trafic API,
+* GPS simulé.
+
+## Phase 2
+
+Ajoute :
+
+* vraies livraisons,
+* utilisateurs,
+* dashboards.
+
+## Phase 3
+
+Ajoute :
+
+* Machine Learning,
+* chatbot IA,
+* prédictions.
+
+---
+
+# Les 3 premières sources que je te recommande
+
+| Source            | Utilité         |
+| ----------------- | --------------- |
+| OpenWeather       | météo           |
+| Google Maps       | trafic          |
+| GPS simulé Python | suivi véhicules |
+
+---
+
+# Pipeline idéal pour toi
+
+```text id="4s7mvk"
+OpenWeather API
+Google Maps API
+GPS Simulation
+        ↓
+n8n
+        ↓
+PostgreSQL
+        ↓
+Metabase
+        ↓
+Machine Learning
+        ↓
+Assistant IA
+```

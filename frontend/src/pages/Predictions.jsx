@@ -1,0 +1,178 @@
+import { useApi } from '../api.js'
+
+const RISK_BADGE = {
+  HIGH:    { cls: 'badge-red',    label: '🔴 ÉLEVÉ' },
+  MEDIUM:  { cls: 'badge-orange', label: '🟠 MOYEN' },
+  LOW:     { cls: 'badge-green',  label: '🟢 FAIBLE' },
+  UNKNOWN: { cls: 'badge-grey',   label: '⚪ INCONNU' },
+}
+
+const FEATURE_LABELS = {
+  wind_speed:          'Vitesse du vent',
+  traffic_delay_s:     'Retard trafic',
+  temperature:         'Température',
+  route_duration_s:    'Durée du trajet',
+  departure_month:     'Mois de départ',
+  hour_cos:            'Heure (cos)',
+  departure_hour:      'Heure de départ',
+  hour_sin:            'Heure (sin)',
+  departure_dow:       'Jour de la semaine',
+  dow_cos:             'Jour (cos)',
+  month_sin:           'Mois (sin)',
+  transit_disruptions: 'Perturbations TC',
+  dow_sin:             'Jour (sin)',
+  month_cos:           'Mois (cos)',
+  is_rush_hour:        'Heure de pointe',
+  transit_status_enc:  'Statut réseau TC',
+  transit_blocking:    'TC bloquantes',
+  is_night:            'Départ nocturne',
+  temp_below_5:        'Temp. < 5°C',
+  traffic_high:        'Trafic élevé',
+  is_weekend:          'Week-end',
+}
+
+const BAR_COLOR = { HIGH: '#ef4444', MEDIUM: '#f97316', LOW: '#22c55e', UNKNOWN: '#64748b' }
+
+function fmtPct(p) { return p != null ? `${Math.round(p * 100)}%` : '—' }
+function fmtDate(d) {
+  if (!d) return '—'
+  return new Date(d).toLocaleString('fr-FR', { dateStyle: 'short', timeStyle: 'short' })
+}
+
+// ── Model info panel ──────────────────────────────────────────────────────
+function ModelInfo({ meta }) {
+  if (!meta || meta.status === 'not_trained') return (
+    <div className="state-box" style={{ marginBottom: 24 }}>
+      ⏳ Modèle pas encore entraîné — le trainer démarrera sous peu.
+    </div>
+  )
+
+  // Support les deux formats : feature_importances (GBT) ou coefficients (LogReg)
+  const importanceMap = meta.feature_importances ?? meta.coefficients ?? {}
+  const isGBT  = !!meta.feature_importances
+  const totalGBT = isGBT ? Math.max(Object.values(importanceMap).reduce((s, v) => s + Math.abs(v), 0), 0.001) : 1
+  const maxVal = isGBT
+    ? Math.max(...Object.values(importanceMap).map(v => Math.abs(v) / totalGBT), 0.001)
+    : Math.max(...Object.values(importanceMap).map(Math.abs), 0.001)
+
+  return (
+    <div className="model-info-grid" style={{ marginBottom: 24 }}>
+      <div className="chart-card">
+        <div className="chart-title">ℹ️ Informations modèle</div>
+        <table style={{ width: '100%' }}>
+          <tbody>
+            {[
+              ['Algorithme',    meta.model_type],
+              ['Entraîné le',   meta.trained_at ? new Date(meta.trained_at).toLocaleString('fr-FR') : '—'],
+              ['Échantillons',  `${(meta.n_total ?? 0).toLocaleString('fr-FR')} (${meta.n_real} réels + ${meta.n_synthetic} synthétiques)`],
+              ['AUC CV (5-fold)', meta.cv_auc_mean != null
+                ? `${meta.cv_auc_mean.toFixed(3)} ± ${(meta.cv_auc_std ?? 0).toFixed(3)}`
+                : meta.auc_train?.toFixed(3)],
+              ['AUC train',     meta.auc_train?.toFixed(3)],
+              ['% retards',     `${meta.delayed_pct?.toFixed(1)}%`],
+            ].map(([k, v]) => (
+              <tr key={k} style={{ borderBottom: '1px solid rgba(51,65,85,0.4)' }}>
+                <td style={{ padding: '8px 0', fontSize: '0.78rem', color: 'var(--muted)', width: '45%' }}>{k}</td>
+                <td style={{ padding: '8px 0', fontSize: '0.82rem', fontWeight: 600 }}>{v ?? '—'}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+
+      <div className="chart-card">
+        <div className="chart-title">📊 Importance des features</div>
+        <div className="coeff-list">
+          {Object.entries(importanceMap)
+            .sort((a, b) => Math.abs(b[1]) - Math.abs(a[1]))
+            .map(([name, val]) => {
+              const normVal = isGBT ? Math.abs(val) / totalGBT : Math.abs(val)
+              const pct   = normVal / maxVal * 100
+              const color = isGBT
+                ? (pct > 66 ? '#ef4444' : pct > 33 ? '#f97316' : '#6366f1')
+                : (val > 0 ? '#ef4444' : '#22c55e')
+              const label = isGBT
+                ? `${(normVal * 100).toFixed(1)}%`
+                : `${val > 0 ? '+' : ''}${val.toFixed(3)}`
+              return (
+                <div className="coeff-row" key={name}>
+                  <span className="coeff-name">{FEATURE_LABELS[name] ?? name}</span>
+                  <div className="coeff-track">
+                    <div className="coeff-fill" style={{ width: `${pct}%`, background: color }} />
+                  </div>
+                  <span className="coeff-val" style={{ color }}>{label}</span>
+                </div>
+              )
+            })}
+        </div>
+      </div>
+    </div>
+  )
+}
+
+// ── Risk card ─────────────────────────────────────────────────────────────
+function RiskCard({ r }) {
+  const badge = RISK_BADGE[r.risk_level] ?? RISK_BADGE.UNKNOWN
+  const barColor = BAR_COLOR[r.risk_level] ?? '#64748b'
+  const prob = r.delay_probability != null ? r.delay_probability * 100 : null
+
+  return (
+    <div className="risk-card">
+      <div className="risk-card-header">
+        <span className="risk-ref">{r.reference}</span>
+        <span className={`badge ${badge.cls}`}>{badge.label}</span>
+      </div>
+      <div className="risk-route">{r.origin} → {r.destination}</div>
+
+      {prob != null && (
+        <>
+          <div className="prob-bar-track">
+            <div className="prob-bar-fill" style={{ width: `${prob.toFixed(0)}%`, background: barColor }} />
+          </div>
+          <div className="prob-label">Probabilité de retard : {fmtPct(r.delay_probability)}</div>
+        </>
+      )}
+
+      {r.risk_factors?.length > 0 && (
+        <div className="risk-factors">
+          {r.risk_factors.map(f => <span key={f} className="risk-factor">{f}</span>)}
+        </div>
+      )}
+
+      <div className="risk-reco">{r.recommendation}</div>
+      <div style={{ fontSize: '0.7rem', color: 'var(--muted)', marginTop: 8 }}>
+        Arrivée prévue : {fmtDate(r.expected_arrival_time)}
+      </div>
+    </div>
+  )
+}
+
+// ── Main ──────────────────────────────────────────────────────────────────
+export default function Predictions() {
+  const { data: risks,  loading: lr, refresh } = useApi('/predictions/ml-delay-risk',  20_000)
+  const { data: meta,   loading: lm }          = useApi('/predictions/ml-model-info',  120_000)
+
+  if ((lr || lm) && !risks) return <div className="state-box">Chargement…</div>
+
+  return (
+    <div className="page-body">
+      <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: 16 }}>
+        <button className="refresh-btn" onClick={refresh}>⟳ Actualiser</button>
+      </div>
+
+      <ModelInfo meta={meta} />
+
+      <div style={{ fontSize: '0.85rem', fontWeight: 700, marginBottom: 12, color: 'var(--text)' }}>
+        Livraisons actives ({risks?.length ?? 0})
+      </div>
+
+      {risks?.length === 0 && (
+        <div className="state-box">Aucune livraison active.</div>
+      )}
+
+      <div className="risk-grid">
+        {risks?.map(r => <RiskCard key={r.delivery_id} r={r} />)}
+      </div>
+    </div>
+  )
+}

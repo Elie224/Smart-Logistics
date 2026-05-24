@@ -1,0 +1,378 @@
+Excellent choix.
+Le domaine **Transport & Logistique** est parfait pour combiner :
+
+* SQL,
+* automatisation,
+* IA,
+* temps réel,
+* dashboards,
+* APIs,
+* Machine Learning.
+
+![Image](https://images.openai.com/static-rsc-4/uDxxzrFUP054XXoxJDojvBPpwDOl5hcQ31D6DXwc3F8dFqvvtOV_IJHizsQ6Bqdjjy5rKrWWtuMBwziwx--pjalXwD70k0yVGJxNnmkvnBzLKhSHgC6EL6U17WAvSEo9pmajMmNJL2MY9LnP9qeMH2dElluKhlZZcWyMY31H_IienUAiYRSv48-g82L6-mc5?purpose=fullsize)
+
+![Image](https://images.openai.com/static-rsc-4/daLqqDBBsOjyMFxivtCEkBmw326vEa5j-fsjWTozNzt4oOdnnhMFIYe7w5lUxGi08TgV-X_zyNL3EyBVhZm_qLpZjX58PIQiRTfpEbvdqigR7qdwN1do1R--NSFTbJzbzSQ1fkNXalpGYE5FlEwDgnufLvGLPGFl-nl0B9iCNPYXq3CyYoze43QpuOOYkt9K?purpose=fullsize)
+
+![Image](https://images.openai.com/static-rsc-4/M4wdWvBABLSVZIIKuLZcBPx_Wd6q6Ntsk-pKVe_iclrI7puS-spINc8LmCzxVRssguCC6A6SxcJQ3bkZ5FlJoYzxidb_wQ6MnBMi0aBP4BlwuxWbajhZrsnGHwsLuQ_mvPm3xCWsQXp3Pml9NOKkkcmgXYBC6d8PBnX1mX0DxTlLLGp2Twmc0MUe0HoV2G1p?purpose=fullsize)
+
+![Image](https://images.openai.com/static-rsc-4/FR8TESwdbzTMmPPM0ZE713HbRiyOlqtF_H2jaXFnUkwnS-LnALwOKM_du52CyyHrR1lAyx7KjWly8J6ekyguH9lQJ46vXD0JtMIPXXsBBaYwOIYqdB-TlUvsZSpoNYBQvW1n9Snm-PzfwY_cJ9wqy6CNO3R1fe6dygREF2YRK7K6XqoC8ai-pVSLaSw1QHb_?purpose=fullsize)
+
+![Image](https://images.openai.com/static-rsc-4/EojoKuNcwDIPaoichZU4dMs2iCporBK_wgv-Gnr7RQQufLpuyeteMnUFj7y3XLfvmpbCu_Fh0brRIpRpkmyX6eUjIekai6rdpVI0UuI45p6XxP_qZnaOdkkp4IuTJuIA9ehBEwtQRHeOBliaU68B9m-tdx5jIDFT7nHOpo77WaDkLOf1dE-5VIYdExx8_rKU?purpose=fullsize)
+
+![Image](https://images.openai.com/static-rsc-4/GTPLPfNJffRpuCqmwJt3iuOTgXj969P2emSfVPmS23RTblQ8egNnrMp9_MCL1nbPM22ZeUkkGpY3EEGZ1Wjy8yL4G4KcJ59EoUrZ5TG7ff2kPFNtl5IeV6HdkacJrLKVT0XQ_Qknj7IY5uWAHILf7ZewX0i85UNtlCu5jW7XtX4pXnRdysXxwN1E8Fxkjue4?purpose=fullsize)
+
+![Image](https://images.openai.com/static-rsc-4/QdD26Ov86T6sW6qlQBQfCMfxllgQ0mgkw-fLhMhQBFifwZmySEGYPN_XBYdovTkN7sMCai5CyaBxqBxGNUi7kHVHUGDcEOE3HkLslLiZIC5TKKcp00kXmytS121epdtqXxfy3LEHAJxEUEARoer5hPWW6SQklXhQ1TGquVip0wTuy98d-eysbM07QePPdxPS?purpose=fullsize)
+
+![Image](https://images.openai.com/static-rsc-4/3HyC6Hdn8asDDXmRKfwpn3ElxNUnrEsIiaUOwaXn8S92g1Ydv6IEF7t4aettoKCyz2XbjoiuH22PeCt8Rh6T6DBanhNbH-iF4N0kxHAbCWof4AxCABgX_5pZpFUyAtqIyDD0CsGGOkHclF1bo6NyQ1EVWKuRZ6pkxuRFRRS-aDOOVVG1G3R00Mt8gaenVh6r?purpose=fullsize)
+
+# Projet : Plateforme IA de Transport & Logistique Temps Réel
+
+## Objectif du projet
+
+Créer une plateforme intelligente capable de :
+
+* collecter des données en temps réel,
+* suivre les véhicules,
+* analyser les performances,
+* prédire les retards,
+* automatiser les opérations,
+* répondre aux questions avec une IA.
+
+---
+
+# Architecture complète
+
+```text id="yd0rjw"
+APIs Temps Réel
+(GPS, météo, trafic)
+        ↓
+n8n (ETL + automatisation)
+        ↓
+PostgreSQL
+(stockage des données)
+        ↓
+Metabase
+(dashboards & analytics)
+        ↓
+Modèle IA
+(prédictions)
+        ↓
+Assistant intelligent
+(chat IA)
+```
+
+---
+
+# Étape 1 — Technologies
+
+## Backend
+
+* FastAPI
+
+## Base de données
+
+* PostgreSQL
+
+## Automatisation
+
+* [n8n](https://n8n.io?utm_source=chatgpt.com)
+
+## Dashboard
+
+* [Metabase](https://www.metabase.com?utm_source=chatgpt.com)
+
+## IA / Machine Learning
+
+* Scikit-learn
+
+## IA conversationnelle
+
+* [OpenAI API](https://platform.openai.com?utm_source=chatgpt.com)
+
+---
+
+# Étape 2 — Données temps réel
+
+## APIs à connecter
+
+### Trafic
+
+* [Google Maps Platform](https://developers.google.com/maps?utm_source=chatgpt.com)
+* [Mapbox](https://www.mapbox.com?utm_source=chatgpt.com)
+
+### Météo
+
+* [OpenWeather API](https://openweathermap.org/api?utm_source=chatgpt.com)
+
+### GPS véhicules
+
+Tu peux :
+
+* simuler les GPS,
+* utiliser des coordonnées temps réel.
+
+---
+
+# Étape 3 — Structure SQL
+
+## Table véhicules
+
+```sql id="d1i3yh"
+CREATE TABLE vehicles (
+    id SERIAL PRIMARY KEY,
+    plaque VARCHAR(50),
+    chauffeur VARCHAR(100),
+    capacite INT,
+    statut VARCHAR(50)
+);
+```
+
+---
+
+## Table livraisons
+
+```sql id="ogv0va"
+CREATE TABLE deliveries (
+    id SERIAL PRIMARY KEY,
+    vehicle_id INT,
+    destination VARCHAR(255),
+    depart_time TIMESTAMP,
+    arrival_time TIMESTAMP,
+    statut VARCHAR(50),
+    cout FLOAT,
+    retard BOOLEAN
+);
+```
+
+---
+
+## Table météo
+
+```sql id="1hmpc0"
+CREATE TABLE weather_data (
+    id SERIAL PRIMARY KEY,
+    ville VARCHAR(100),
+    temperature FLOAT,
+    pluie FLOAT,
+    humidite FLOAT,
+    date_releve TIMESTAMP
+);
+```
+
+---
+
+## Table GPS temps réel
+
+```sql id="gcqk2g"
+CREATE TABLE gps_tracking (
+    id SERIAL PRIMARY KEY,
+    vehicle_id INT,
+    latitude FLOAT,
+    longitude FLOAT,
+    vitesse FLOAT,
+    date_position TIMESTAMP
+);
+```
+
+---
+
+# Étape 4 — Automatisation avec n8n
+
+![Image](https://images.openai.com/static-rsc-4/pupIfIMZ8d9jMptjA697MTnAKyUy92ecYMCVgToxQm367ki-5uOb11aeF7dNp-J8WiEgs1UvqDv33NXlM2gmCMOrx_JuWcYLG6gvhkUPOuiGK2GOGsVyDLcBW8-_Gmy8vnB_AIIFZ9xo4EPpUg0a1BoALCGRIyfBjzFARWvyr0NtydRM4VqLa1pis1PiysWf?purpose=fullsize)
+
+![Image](https://images.openai.com/static-rsc-4/QSord_ohKOyWtsd70XZxc_uhW5jpuWZy6h_sWVeBs2H22iMuO55HXWn4ynJZSX2AYzINWkx3wefSWYAmzSK-Eumqs4TpM__dQDHtm3asjRDsMNFkH5DuROnvBC-ZRaZX1OW6JnP1O278NyWpeuYtkShJ0hfadVKOJWode0V1xGqwMZofTNUdddjskG5uMUb-?purpose=fullsize)
+
+![Image](https://images.openai.com/static-rsc-4/VI5VUlK4qCN4GL54yXoRMj3chEomfRsdH8pZ1m6YnvL3R9fj94-oxhrqf-WXfKT8MCJfgQH7oB1g7c_Y_Rx49UQlg6wkrXT8CluAkKiHcipyCODm9ahStMMHVd7dzT6vVCq-7gJNwPm2eh4gKRRD1B38-27yz_Ru1TeWG3mNAlBaJfJuD_S5Aaxr0z2_J2Wl?purpose=fullsize)
+
+![Image](https://images.openai.com/static-rsc-4/6qKeKfvOjWq7Qh4fPrT-4Y_Mriz5lhSHXqtDnBYxAwyPtz93_WD48NMr0w7zj8yWro3gIw9zWEp39mUwF8Myn_XN5KQ4HWsDvzoB_Jg8-EwDqpfm3mxO8ChanYLzYXNEStJeFiBSz-dclu0EVLiMUoc3ozfOUqkRCvX-PePuAgIqg3QEV_lyY5b5T86ugIv4?purpose=fullsize)
+
+![Image](https://images.openai.com/static-rsc-4/cz-zRTdiIyB93tAMDShWkfp-e-BoN4iZlOEXStvJd9BXreuLgdf35xQU5thdgM1Af5hZP_f9Bo5L5ULkIfwsSqklzQjS8hLlNw8dEpOaMLBe9SQuvI0mlX73e6O0iThKk2gRaSOqx6JB5-0s2VFx8VqU5vcgwbFJp74MvajfpglmH4aFo9JFKsXwv1R-1lEo?purpose=fullsize)
+
+![Image](https://images.openai.com/static-rsc-4/bDMXl1_yKw0-LGBSyWYl19H9Xa_J02JB9nvRtXcmfhZ9WycReRz44LYL3gk0LknLbiak62bph1QRCMBnC3dl_HziPyVpkLDAb6XJXkeWvJBb58RMq4GhjxTXNyXujYA7aHugcXKCqKQpafJyYdo_qXJ_4jyusjvWQRLBaAWWEbOqB1ZFNCivq9O6g7LLzbpN?purpose=fullsize)
+
+![Image](https://images.openai.com/static-rsc-4/bZzu7Cde2uC1paJNY8sFYUzBIn2BL3Yr3xZQyZomjUAQq-UHgY1A-dTTlyIAjWf0eSKobpoudxpdbg0UI8iWy7dEmUR_u4nD4NEMhP1RkjB1PHrC4Y4SJ24NyOb0af6DObow7f7lgeYyuP6UD5e6sA-EqybSkFk_QwGS1XU9t20jTLbZGB0Izp-0lbAISY-p?purpose=fullsize)
+
+## Workflow 1 : Collecte météo
+
+```text id="6woa2z"
+Toutes les 10 minutes
+        ↓
+n8n appelle OpenWeather API
+        ↓
+Transforme les données
+        ↓
+Stocke dans PostgreSQL
+```
+
+---
+
+## Workflow 2 : Collecte GPS
+
+```text id="fjlwmv"
+GPS véhicule
+        ↓
+Webhook n8n
+        ↓
+Stockage SQL
+        ↓
+Dashboard live
+```
+
+---
+
+## Workflow 3 : Alertes
+
+```text id="d9jkku"
+Si retard détecté
+        ↓
+n8n envoie email
+        ↓
+Notification Telegram
+```
+
+---
+
+# Étape 5 — Dashboards Metabase
+
+## Dashboard logistique
+
+Tu peux afficher :
+
+* véhicules actifs,
+* livraisons en cours,
+* coûts,
+* cartes GPS,
+* retards,
+* KPI temps réel.
+
+---
+
+# Étape 6 — Machine Learning
+
+![Image](https://images.openai.com/static-rsc-4/_buM30LL1jF9wjlTVYBD1wrTPKS48vHyqfKrUwOn0BExLT6O9gd93Qk5rze98xdmrSgLbdSJxq0X0nm5AgrwY153P3uHzhPZ6-ljoFjWydxYeNxG8h1mtzEKzBNNAwez_8xqDgjTxYMI4cv8rTXdro7FnsiFVwt30dtToisjLUvZ8xEfKOGbo4lWBoUzsUYp?purpose=fullsize)
+
+![Image](https://images.openai.com/static-rsc-4/oogw8AA4Z68z0zMRszpXjDVUMQ-eanmJmhD_UEyC80umszygYMan3s6waMGZrKygobUeNWCbB4yvu5tPDuADZ6d0RNXkAgnc1XUteqZidGfOj35icqWqiA0XECD_FMOc8L_QlHm8VfFHt09RFysYV4scEB-66X7v8bMw4rXN41v0i_hcO7Jd2jqHubdQfNHa?purpose=fullsize)
+
+![Image](https://images.openai.com/static-rsc-4/0khTkOEe5ASlgmTapcdf8MMFPCVcd_eQwJe6wNgNhrq2hl37Mt-oBB0NCh9x_4BuyNWQVQCSlKDlBv7jakjJSn9we4VMu7tagGko_1Y91yEVBBI2iLL3iJglEEo5UPtsj5juVk0DKs1oIe2vMtrBld5c_6a3ypiulvjVdsDruuPciHacaJ-8udYp7T6j0-Yc?purpose=fullsize)
+
+![Image](https://images.openai.com/static-rsc-4/VIAbt3xU4VVGUZzRigWswf8c8BJ_X_-1Pg5FO7uqhd0fXurf6Gx-138UZomZ0wuLddgDerVrIEEJoUzWbqfOCChG9Jpc9eU4lGZBztk5ETOHJBWmiX2m8zsD_Prx-hvbMJsvLAr1Vpl449XV5qvSN1Yot2qrMeNK5uNkyYccIh_19bz2e37ltM6fJKy-aSqP?purpose=fullsize)
+
+![Image](https://images.openai.com/static-rsc-4/b8qnX5XAo-dnIdyQ1vJlLx5XS8hloszNoZMz6ja0Rg613N0y32g4EHW19IQhbj9tbpnJwlbfXZ8v6H-RguENh8ltKaevykKygIkH5-kvFXNaDGoezHFWy9TooNP-jHpZcXBe44AGGz4vOwJpz670whY6F8a1AEP16F5tetcl7RDXWf_xzYZN1N2pV9kf13Vr?purpose=fullsize)
+
+![Image](https://images.openai.com/static-rsc-4/JQuzFb1fa4y9eUXIG8sOPWxtzwDj7rp82rewP4YRZkLH5yTrlZBF8zagmR4njtYHHfsjitRmNUl9yJKAiuMYFLOrWSzL4SetE8l1WG_5uudBXs4JxrAjsYfDalbfI4LLvACjJqnY8zyUtEHtxz86iu7Z73zonsqgPTjcCQh1mbijFCA4tYYDd517ZbM7wklQ?purpose=fullsize)
+
+![Image](https://images.openai.com/static-rsc-4/Fi46pcVsFg3USI1lfj0Um0IyzhF32YsRM3oDTbEZ5ET1NyvL23t2Y5EDxMktRwvv4yos0VjrYwpjZOjm-9b9nBE14vxer2TH5Bk-JSO2-5JlA8v2I4Mo8aH4OcyQkkOqwgsyzitVq1Ov0DNQRw6dYs0qnf3QxklkejoPRuDT0wzHCMYdoGfZ3zdx4FuRLKVd?purpose=fullsize)
+
+![Image](https://images.openai.com/static-rsc-4/WSzfVlLi3hmGEsb6LGJLDk-G1V4gBLJvMrtYxK3OQ5BM1WFl9JEMLe4xLpMaFjAH_P1_mMXblu-ril13tVniTFctA7cY9vFJ_RriKneCsOYMp3Y4FOD5V7v9ceAcDcE6QIhMUyXMxurdOTU8d8wMRq4KARlpYbKc-62fYQzVCxOkM3Yp4ycIdEy9PvrjmvKw?purpose=fullsize)
+
+## Premier modèle IA
+
+### Objectif
+
+Prédire les retards de livraison.
+
+## Données utilisées
+
+* météo,
+* trafic,
+* distance,
+* vitesse,
+* historique des livraisons.
+
+---
+
+# Exemple d'entraînement
+
+Avec :
+
+* Pandas
+* Scikit-learn
+
+Le modèle apprend :
+
+```text id="3rkfzd"
+pluie + trafic élevé + distance longue
+= fort risque de retard
+```
+
+---
+
+# Étape 7 — Assistant IA
+
+Tu vas créer un chatbot intelligent.
+
+## Questions possibles
+
+```text id="onklj6"
+Quels véhicules sont en retard ?
+
+Quel chauffeur est le plus performant ?
+
+Prévois les retards aujourd’hui.
+
+Montre les livraisons critiques.
+
+Quel itinéraire coûte le plus cher ?
+```
+
+---
+
+# Étape 8 — Frontend
+
+Tu peux utiliser :
+
+* React
+  ou
+* Django
+
+---
+
+# Fonctionnalités visuelles
+
+## Carte temps réel
+
+* positions GPS,
+* itinéraires,
+* trafic.
+
+## Dashboard IA
+
+* prédictions,
+* alertes,
+* KPI.
+
+---
+
+# Version très avancée
+
+Ensuite tu pourras ajouter :
+
+## Streaming temps réel
+
+* Apache Kafka
+
+## Monitoring
+
+* Grafana
+
+## Déploiement cloud
+
+* [AWS](https://aws.amazon.com?utm_source=chatgpt.com)
+* [Google Cloud](https://cloud.google.com?utm_source=chatgpt.com)
+
+---
+
+# Ce que ce projet montre sur ton CV
+
+Tu démontres :
+
+* Data Engineering,
+* APIs temps réel,
+* SQL avancé,
+* BI,
+* automatisation,
+* IA,
+* SaaS,
+* architecture distribuée.
+
+C’est un vrai projet niveau entreprise.

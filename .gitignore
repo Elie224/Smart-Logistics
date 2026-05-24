@@ -1,0 +1,13 @@
+.env
+pgadmin_data/
+postgres_data/
+n8n_data/
+metabase_data/
+.venv/
+node_modules/
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+*.log
+metabase.cookies

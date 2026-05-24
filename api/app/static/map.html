@@ -1,0 +1,831 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Smart Logistics — Carte Temps Réel</title>
+
+  <!-- Leaflet -->
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+
+    body {
+      font-family: 'Segoe UI', system-ui, sans-serif;
+      background: #0f172a;
+      color: #e2e8f0;
+      display: flex;
+      height: 100vh;
+      overflow: hidden;
+    }
+
+    /* ── Sidebar ── */
+    #sidebar {
+      width: 340px;
+      min-width: 280px;
+      background: #1e293b;
+      display: flex;
+      flex-direction: column;
+      border-right: 1px solid #334155;
+      overflow: hidden;
+    }
+
+    #sidebar-header {
+      padding: 16px 20px 12px;
+      border-bottom: 1px solid #334155;
+      background: #0f172a;
+    }
+
+    #sidebar-header h1 {
+      font-size: 1.1rem;
+      font-weight: 700;
+      color: #38bdf8;
+      letter-spacing: 0.02em;
+    }
+
+    #sidebar-header p {
+      font-size: 0.75rem;
+      color: #64748b;
+      margin-top: 3px;
+    }
+
+    #refresh-badge {
+      display: inline-block;
+      margin-top: 6px;
+      padding: 2px 8px;
+      background: #0f2942;
+      border: 1px solid #1e4163;
+      border-radius: 999px;
+      font-size: 0.7rem;
+      color: #7dd3fc;
+    }
+
+    #sidebar-body {
+      flex: 1;
+      overflow-y: auto;
+      padding: 12px;
+    }
+
+    /* ── Section titles ── */
+    .section-title {
+      font-size: 0.7rem;
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      color: #64748b;
+      margin: 14px 0 6px;
+      padding-left: 2px;
+    }
+
+    /* ── Vehicle cards ── */
+    .vehicle-card {
+      background: #0f172a;
+      border: 1px solid #334155;
+      border-radius: 10px;
+      padding: 12px 14px;
+      margin-bottom: 8px;
+      cursor: pointer;
+      transition: border-color 0.2s;
+    }
+
+    .vehicle-card:hover { border-color: #38bdf8; }
+
+    .vehicle-card-header {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      margin-bottom: 6px;
+    }
+
+    .status-dot {
+      width: 10px;
+      height: 10px;
+      border-radius: 50%;
+      flex-shrink: 0;
+    }
+
+    .dot-AVAILABLE    { background: #22c55e; }
+    .dot-IN_TRANSIT   { background: #38bdf8; box-shadow: 0 0 6px #38bdf8; }
+    .dot-MAINTENANCE  { background: #f59e0b; }
+    .dot-OFFLINE      { background: #ef4444; }
+
+    .vehicle-plate {
+      font-weight: 700;
+      font-size: 0.9rem;
+      color: #f1f5f9;
+    }
+
+    .vehicle-driver { font-size: 0.78rem; color: #94a3b8; margin-bottom: 4px; }
+
+    .vehicle-meta {
+      display: flex;
+      gap: 10px;
+      font-size: 0.72rem;
+      color: #64748b;
+      margin-top: 4px;
+    }
+
+    .vehicle-meta span { display: flex; align-items: center; gap: 3px; }
+
+    .delivery-badge {
+      display: inline-block;
+      margin-top: 6px;
+      padding: 2px 8px;
+      border-radius: 4px;
+      font-size: 0.7rem;
+      font-weight: 600;
+      background: #0f2a4a;
+      color: #7dd3fc;
+      border: 1px solid #1e4163;
+    }
+
+    /* ── ML risk cards ── */
+    .risk-card {
+      background: #0f172a;
+      border: 1px solid #334155;
+      border-radius: 10px;
+      padding: 12px 14px;
+      margin-bottom: 8px;
+    }
+
+    .risk-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-bottom: 6px;
+    }
+
+    .risk-ref { font-weight: 700; font-size: 0.85rem; }
+
+    .risk-badge {
+      padding: 2px 10px;
+      border-radius: 999px;
+      font-size: 0.7rem;
+      font-weight: 700;
+    }
+
+    .risk-HIGH    { background: #450a0a; color: #fca5a5; border: 1px solid #7f1d1d; }
+    .risk-MEDIUM  { background: #431407; color: #fdba74; border: 1px solid #7c2d12; }
+    .risk-LOW     { background: #052e16; color: #86efac; border: 1px solid #14532d; }
+    .risk-UNKNOWN { background: #1e293b; color: #94a3b8; border: 1px solid #334155; }
+
+    .risk-prob { font-size: 0.75rem; color: #94a3b8; margin-top: 2px; }
+
+    .risk-factors {
+      margin-top: 6px;
+      display: flex;
+      flex-wrap: wrap;
+      gap: 4px;
+    }
+
+    .risk-factor-tag {
+      padding: 1px 7px;
+      background: #1e293b;
+      border: 1px solid #334155;
+      border-radius: 4px;
+      font-size: 0.68rem;
+      color: #94a3b8;
+    }
+
+    .risk-reco {
+      margin-top: 6px;
+      font-size: 0.73rem;
+      color: #7dd3fc;
+      font-style: italic;
+    }
+
+    /* ── Progress bar ── */
+    .prob-bar-track {
+      height: 4px;
+      background: #334155;
+      border-radius: 2px;
+      margin-top: 6px;
+      overflow: hidden;
+    }
+
+    .prob-bar-fill {
+      height: 100%;
+      border-radius: 2px;
+      transition: width 0.4s;
+    }
+
+    /* ── Map ── */
+    #map { flex: 1; }
+
+    /* ── Legend ── */
+    #legend {
+      position: absolute;
+      bottom: 28px;
+      right: 14px;
+      background: rgba(15, 23, 42, 0.92);
+      border: 1px solid #334155;
+      border-radius: 10px;
+      padding: 10px 14px;
+      z-index: 1000;
+      font-size: 0.75rem;
+      color: #94a3b8;
+    }
+
+    #legend div { display: flex; align-items: center; gap: 7px; margin-bottom: 4px; }
+    #legend .ld { width: 10px; height: 10px; border-radius: 50%; }
+
+    /* Scrollbar */
+    #sidebar-body::-webkit-scrollbar { width: 5px; }
+    #sidebar-body::-webkit-scrollbar-track { background: transparent; }
+    #sidebar-body::-webkit-scrollbar-thumb { background: #334155; border-radius: 3px; }
+  </style>
+</head>
+<body>
+
+<!-- ── Sidebar ── -->
+<div id="sidebar">
+  <div id="sidebar-header">
+    <h1>🚚 Smart Logistics</h1>
+    <p>Carte temps réel — Paris &amp; Lille</p>
+    <span id="refresh-badge">⟳ actualisation dans <span id="countdown">10</span>s</span>
+  </div>
+  <div id="sidebar-body">
+    <div class="section-title">Transports en commun</div>
+    <div id="transit-list-sidebar"><p style="color:#64748b;font-size:.8rem">Chargement…</p></div>
+
+    <div class="section-title">Véhicules en service</div>
+    <div id="vehicle-list"><p style="color:#64748b;font-size:.8rem">Chargement…</p></div>
+
+    <div class="section-title">Trafic urbain</div>
+    <div id="traffic-list"><p style="color:#64748b;font-size:.8rem">Chargement…</p></div>
+  </div>
+</div>
+
+<!-- ── Map ── -->
+<div id="map"></div>
+
+<!-- ── Legend ── -->
+<div id="legend">
+  <div style="font-size:.65rem;color:#6366f1;font-weight:700;margin-bottom:5px;letter-spacing:.05em">STATUT LIGNES TC</div>
+  <div><span class="ld" style="background:#22c55e"></span> Normal</div>
+  <div><span class="ld" style="background:#f59e0b"></span> Service réduit</div>
+  <div><span class="ld" style="background:#ef4444"></span> Perturbé</div>
+  <div style="margin-top:8px;border-top:1px solid #334155;padding-top:6px;font-size:.65rem;color:#6366f1;font-weight:700;margin-bottom:5px;letter-spacing:.05em">TRAFIC</div>
+  <div><span class="ld" style="background:#22c55e"></span> Fluide</div>
+  <div><span class="ld" style="background:#f97316"></span> Ralenti</div>
+  <div><span class="ld" style="background:#ef4444"></span> Congestionné</div>
+  <div style="margin-top:8px;border-top:1px solid #334155;padding-top:8px">
+    <button
+      id="transit-toggle"
+      onclick="toggleTransitLayer()"
+      style="width:100%;padding:5px 10px;border-radius:6px;border:1px solid #6366f1;
+             background:rgba(15,23,42,0.92);color:#94a3b8;cursor:pointer;font-size:0.72rem;
+             font-weight:600;transition:all 0.15s"
+    >🚇 Lignes TC</button>
+  </div>
+</div>
+
+<script>
+const API = '/api/v1';
+
+// ── Map setup ──────────────────────────────────────────────────────────────
+let map, mapboxToken = '';
+let vehicleMarkers = {};
+let parisMarker, lilleMarker, routeLine;
+let trafficCircles = {};
+let transitLayer = null;
+let transitVehicleMarkers = [];
+let transitVisible = false;
+
+// ── Transit routes ──────────────────────────────────────────────────────────
+const TRANSIT_ROUTES = [
+  // Paris
+  { name: 'M1',     city: 'Paris', color: '#FFCE00', w: 3,
+    coords: [[48.892,2.238],[48.876,2.295],[48.860,2.347],[48.848,2.397],[48.845,2.440]], travel_min: 37 },
+  { name: 'M4',     city: 'Paris', color: '#9B1B80', w: 3,
+    coords: [[48.895,2.344],[48.876,2.352],[48.860,2.347],[48.840,2.328],[48.815,2.317]], travel_min: 29 },
+  { name: 'M6',     city: 'Paris', color: '#82BE00', w: 3,
+    coords: [[48.876,2.296],[48.855,2.279],[48.844,2.305],[48.845,2.360],[48.848,2.397]], travel_min: 25 },
+  { name: 'M13',    city: 'Paris', color: '#4DB848', w: 3,
+    coords: [[48.926,2.359],[48.895,2.344],[48.870,2.332],[48.840,2.313],[48.794,2.302]], travel_min: 40 },
+  { name: 'M14',    city: 'Paris', color: '#6B267E', w: 3,
+    coords: [[48.826,2.367],[48.840,2.353],[48.855,2.344],[48.875,2.325]],               travel_min: 16 },
+  { name: 'RER A',  city: 'Paris', color: '#FF1400', w: 2,
+    coords: [[49.039,2.060],[48.960,2.120],[48.892,2.238],[48.876,2.295],[48.860,2.347],[48.841,2.650],[48.841,2.777]], travel_min: 100 },
+  { name: 'RER B',  city: 'Paris', color: '#3C91DC', w: 2,
+    coords: [[49.004,2.547],[48.952,2.443],[48.895,2.344],[48.860,2.347],[48.836,2.318],[48.776,2.270]], travel_min: 80 },
+  { name: 'RER C',  city: 'Paris', color: '#FECE00', w: 2,
+    coords: [[48.802,2.132],[48.844,2.274],[48.856,2.352],[48.870,2.460],[48.837,2.530]], travel_min: 60 },
+  { name: 'RER D',  city: 'Paris', color: '#00814F', w: 2,
+    coords: [[49.140,2.483],[49.004,2.547],[48.895,2.344],[48.756,2.378],[48.610,2.445]], travel_min: 90 },
+  { name: 'RER E',  city: 'Paris', color: '#C04191', w: 2,
+    coords: [[48.876,2.325],[48.870,2.365],[48.882,2.478],[48.870,2.590]], travel_min: 45 },
+  { name: 'T3a',    city: 'Paris', color: '#6E3219', w: 2,
+    coords: [[48.844,2.274],[48.832,2.310],[48.830,2.360],[48.842,2.397]], travel_min: 40 },
+  { name: 'T3b',    city: 'Paris', color: '#A0522D', w: 2,
+    coords: [[48.842,2.397],[48.862,2.430],[48.883,2.365],[48.894,2.350]], travel_min: 35 },
+  { name: 'Bus 38', city: 'Paris', color: '#F5A623', w: 1,
+    coords: [[48.881,2.356],[48.869,2.352],[48.851,2.345],[48.836,2.330],[48.820,2.302],[48.789,2.265]], travel_min: 55 },
+  { name: 'Bus 63', city: 'Paris', color: '#F5A623', w: 1,
+    coords: [[48.856,2.301],[48.853,2.330],[48.848,2.365],[48.844,2.375]], travel_min: 45 },
+  { name: 'Bus 95', city: 'Paris', color: '#F5A623', w: 1,
+    coords: [[48.822,2.338],[48.842,2.344],[48.861,2.346],[48.887,2.330],[48.900,2.286]], travel_min: 50 },
+  // Lille
+  { name: 'M1',     city: 'Lille', color: '#FF6600', w: 3,
+    coords: [[50.649,2.984],[50.637,3.022],[50.629,3.057],[50.620,3.017],[50.616,3.012]], travel_min: 22 },
+  { name: 'M2',     city: 'Lille', color: '#0099CC', w: 3,
+    coords: [[50.625,2.935],[50.627,2.983],[50.629,3.057],[50.622,3.098],[50.618,3.135]], travel_min: 25 },
+  { name: 'Tram R', city: 'Lille', color: '#8B4513', w: 2,
+    coords: [[50.724,3.155],[50.695,3.133],[50.661,3.107],[50.639,3.078],[50.629,3.057]], travel_min: 35 },
+  { name: 'L1',     city: 'Lille', color: '#00A651', w: 1,
+    coords: [[50.649,2.984],[50.636,3.015],[50.628,3.060],[50.616,3.085]], travel_min: 30 },
+  { name: 'L3',     city: 'Lille', color: '#0072BC', w: 1,
+    coords: [[50.620,2.975],[50.630,3.020],[50.629,3.057],[50.638,3.110]], travel_min: 35 },
+  { name: 'L5',     city: 'Lille', color: '#EE1C25', w: 1,
+    coords: [[50.595,3.060],[50.610,3.058],[50.629,3.057],[50.648,3.095]], travel_min: 28 },
+];
+
+function interpolateCoords(coords, t) {
+  const n = coords.length - 1;
+  if (t >= 1) return coords[n];
+  const segIdx = Math.floor(t * n);
+  const segT   = (t * n) - segIdx;
+  const [la1, lo1] = coords[segIdx];
+  const [la2, lo2] = coords[Math.min(segIdx + 1, n)];
+  return [la1 + (la2 - la1) * segT, lo1 + (lo2 - lo1) * segT];
+}
+
+function getVehiclePositions(route) {
+  const nowSec    = Date.now() / 1000;
+  const travelSec = route.travel_min * 60;
+  const hash      = route.name.split('').reduce((a, c) => a + c.charCodeAt(0), 0);
+  const count     = Math.max(2, Math.round(route.travel_min / 10));
+  return Array.from({ length: count }, (_, i) => {
+    const offset = (i / count) * travelSec;
+    const phase  = ((nowSec + offset + hash * 31) % travelSec) / travelSec;
+    // Back-and-forth: 0→1 then 1→0
+    const t = phase < 0.5 ? phase * 2 : (1 - phase) * 2;
+    return interpolateCoords(route.coords, t);
+  });
+}
+
+function makeTransitDot(color) {
+  return L.divIcon({
+    className: '',
+    html: `<div style="width:12px;height:12px;border-radius:50%;background:${color};
+             border:2px solid #0f172a;box-shadow:0 0 6px ${color}bb"></div>`,
+    iconAnchor: [6, 6],
+  });
+}
+
+// ── Transit type helper ───────────────────────────────────────────────────
+function getRouteType(name) {
+  if (name.startsWith('RER'))                    return 'RER';
+  if (name.startsWith('T3') || name.startsWith('Tram')) return 'Tramway';
+  if (name.startsWith('Bus'))                    return 'Bus';
+  if (name.startsWith('L'))                      return 'Ligne';
+  if (name === 'Eurostar')                       return 'Train';
+  return 'Métro';
+}
+
+// ── Refresh TC sidebar list ────────────────────────────────────────────────
+async function refreshTransitList() {
+  const lines = await fetch(`${API}/transit/lines`)
+    .then(r => r.ok ? r.json() : []).catch(() => []);
+
+  const statusMap = {};
+  lines.forEach(l => { statusMap[`${l.city}|${l.line_name}`] = l.network_status || 'NORMAL'; });
+
+  const el = document.getElementById('transit-list-sidebar');
+  if (!el) return;
+
+  const STATUS_TC = {
+    NORMAL:    { label: 'Normal',    color: '#22c55e' },
+    REDUCED:   { label: 'Réduit',    color: '#f97316' },
+    DISRUPTED: { label: 'Perturbé',  color: '#ef4444' },
+  };
+
+  function routeCard(r) {
+    const vCount = getVehiclePositions(r).length;
+    const key    = `${r.city}|${r.name}`;
+    const sKey   = statusMap[key] || 'NORMAL';
+    const st     = STATUS_TC[sKey] || STATUS_TC.NORMAL;
+    const type   = getRouteType(r.name);
+    const typeIcon = type === 'Métro' ? '🚇' : type === 'RER' ? '🚆' : type === 'Tramway' ? '🚋' : type === 'Train' ? '🚄' : '🚌';
+    return `
+      <div class="vehicle-card">
+        <div class="vehicle-card-header">
+          <span style="display:inline-block;padding:2px 8px;border-radius:5px;
+            background:${r.color};color:#fff;font-size:.65rem;font-weight:900;
+            min-width:28px;text-align:center;white-space:nowrap">${r.name}</span>
+          <span style="margin-left:6px;font-size:.72rem;color:#94a3b8">${typeIcon} ${type}</span>
+          <span style="margin-left:auto;padding:2px 8px;border-radius:999px;font-size:.65rem;
+            font-weight:700;background:${st.color}22;color:${st.color};border:1px solid ${st.color}55">
+            ${st.label}
+          </span>
+        </div>
+        <div class="vehicle-meta">
+          <span>🚍 ${vCount} veh.</span>
+          <span style="color:#64748b">${r.city}</span>
+        </div>
+      </div>`;
+  }
+
+  const paris = TRANSIT_ROUTES.filter(r => r.city === 'Paris');
+  const lille  = TRANSIT_ROUTES.filter(r => r.city === 'Lille');
+
+  el.innerHTML =
+    `<div style="font-size:.63rem;color:#6366f1;font-weight:700;margin-bottom:5px;letter-spacing:.06em">🗺 PARIS</div>` +
+    paris.map(routeCard).join('') +
+    `<div style="font-size:.63rem;color:#6366f1;font-weight:700;margin:10px 0 5px;letter-spacing:.06em">🗺 LILLE</div>` +
+    lille.map(routeCard).join('');
+}
+
+function toggleTransitLayer() {
+  transitVisible = !transitVisible;
+  const btn = document.getElementById('transit-toggle');
+  if (transitVisible) {
+    btn.style.background = '#6366f1';
+    btn.style.color = '#fff';
+    drawTransitRoutes();
+    startTransitAnimation();
+  } else {
+    btn.style.background = 'rgba(15,23,42,0.92)';
+    btn.style.color = '#94a3b8';
+    if (transitLayer) { map.removeLayer(transitLayer); transitLayer = null; }
+    transitVehicleMarkers.forEach(m => map.removeLayer(m));
+    transitVehicleMarkers = [];
+  }
+}
+
+function drawTransitRoutes() {
+  if (transitLayer) map.removeLayer(transitLayer);
+  transitLayer = L.layerGroup();
+  TRANSIT_ROUTES.forEach(r => {
+    L.polyline(r.coords, {
+      color: r.color, weight: r.w + 1, opacity: 0.75,
+    })
+    .bindTooltip(`<b style="color:${r.color}">${r.name}</b> (${r.city})`, { sticky: true })
+    .addTo(transitLayer);
+  });
+  transitLayer.addTo(map);
+}
+
+function refreshTransitVehicles() {
+  if (!transitVisible) return;
+  transitVehicleMarkers.forEach(m => map.removeLayer(m));
+  transitVehicleMarkers = [];
+  TRANSIT_ROUTES.forEach(r => {
+    getVehiclePositions(r).forEach(pos => {
+      const m = L.marker(pos, { icon: makeTransitDot(r.color), zIndexOffset: 500 })
+        .bindTooltip(`${r.name}`, { direction: 'top', className: 'city-tooltip' });
+      m.addTo(map);
+      transitVehicleMarkers.push(m);
+    });
+  });
+}
+
+let _transitAnimInterval = null;
+function startTransitAnimation() {
+  if (_transitAnimInterval) clearInterval(_transitAnimInterval);
+  refreshTransitVehicles();
+  _transitAnimInterval = setInterval(refreshTransitVehicles, 8000);
+}
+
+// City centre coords for traffic overlays
+const CITY_COORDS = {
+  Paris: [48.856613, 2.352222],
+  Lille: [50.629250, 3.057256],
+};
+
+const TRAFFIC_COLOR = {
+  FLUID:     '#22c55e',
+  SLOW:      '#f97316',
+  CONGESTED: '#ef4444',
+};
+
+const TRAFFIC_LABEL = {
+  FLUID:     'Fluide',
+  SLOW:      'Ralenti',
+  CONGESTED: 'Congestionné',
+};
+
+async function initMap() {
+  // Fetch config (Mapbox token + city coords)
+  const cfg = await fetch(`${API}/config`).then(r => r.json()).catch(() => ({}));
+  mapboxToken = cfg.mapbox_token || '';
+
+  const PARIS = [cfg.paris?.lat ?? 48.856613, cfg.paris?.lon ?? 2.352222];
+  const LILLE = [cfg.lille?.lat ?? 50.629250, cfg.lille?.lon ?? 3.057256];
+  const MIDPOINT = [(PARIS[0]+LILLE[0])/2, (PARIS[1]+LILLE[1])/2];
+
+  map = L.map('map', { zoomControl: true }).setView(MIDPOINT, 7);
+
+  // Tile layer: Mapbox Streets if token available, else OSM
+  if (mapboxToken) {
+    L.tileLayer(
+      `https://api.mapbox.com/styles/v1/mapbox/dark-v11/tiles/{z}/{x}/{y}?access_token=${mapboxToken}`,
+      { tileSize: 512, zoomOffset: -1, attribution: '© Mapbox © OpenStreetMap' }
+    ).addTo(map);
+  } else {
+    L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', {
+      attribution: '© OpenStreetMap © CartoDB'
+    }).addTo(map);
+  }
+
+  // Paris & Lille city markers
+  const cityIcon = (color) => L.divIcon({
+    className: '',
+    html: `<div style="width:14px;height:14px;border-radius:50%;background:${color};
+            border:2px solid #fff;box-shadow:0 0 8px ${color}"></div>`,
+    iconAnchor: [7, 7]
+  });
+
+  parisMarker = L.marker(PARIS, { icon: cityIcon('#a78bfa') })
+    .addTo(map)
+    .bindTooltip('<b>Paris</b>', { permanent: true, direction: 'bottom', className: 'city-tooltip' });
+
+  lilleMarker = L.marker(LILLE, { icon: cityIcon('#a78bfa') })
+    .addTo(map)
+    .bindTooltip('<b>Lille</b>', { permanent: true, direction: 'top', className: 'city-tooltip' });
+
+  // Route line Paris ↔ Lille
+  routeLine = L.polyline([PARIS, LILLE], {
+    color: '#6366f1', weight: 2, dashArray: '8 6', opacity: 0.6
+  }).addTo(map);
+
+  // Initial data load
+  await refreshPositions();
+  await refreshTraffic();
+  await refreshTransitList();
+
+  // Auto-activate transit layer
+  transitVisible = true;
+  const _btn = document.getElementById('transit-toggle');
+  if (_btn) { _btn.style.background = '#6366f1'; _btn.style.color = '#fff'; }
+  drawTransitRoutes();
+  startTransitAnimation();
+
+  // Auto-refresh every 10s
+  startCountdown();
+}
+
+// ── Vehicle color by status ────────────────────────────────────────────────
+const STATUS_COLOR = {
+  AVAILABLE:   '#22c55e',
+  IN_TRANSIT:  '#38bdf8',
+  MAINTENANCE: '#f59e0b',
+  OFFLINE:     '#ef4444',
+};
+
+function makeVehicleIcon(status) {
+  const c = STATUS_COLOR[status] || '#94a3b8';
+  const glow = status === 'IN_TRANSIT' ? `box-shadow:0 0 8px ${c};` : '';
+  return L.divIcon({
+    className: '',
+    html: `<div style="width:18px;height:18px;border-radius:50%;background:${c};
+            border:2px solid #0f172a;${glow}"></div>`,
+    iconAnchor: [9, 9]
+  });
+}
+
+// ── Refresh vehicle positions ─────────────────────────────────────────────
+// Les camions GPS fictifs sont remplacés par les vrais véhicules TC
+async function refreshPositions() {
+  // Supprimer tout marqueur GPS résiduel
+  Object.values(vehicleMarkers).forEach(m => map.removeLayer(m));
+  vehicleMarkers = {};
+  // Afficher le résumé des véhicules TC dans la sidebar
+  renderTransitVehicleSummary();
+}
+
+function buildVehiclePopup(v) {
+  const c = STATUS_COLOR[v.vehicle_status] || '#94a3b8';
+  return `
+    <div style="font-family:Segoe UI,sans-serif;min-width:180px">
+      <b style="color:${c}">${v.license_plate}</b><br>
+      <span style="color:#6b7280;font-size:.85em">${v.driver_name}</span><br>
+      <hr style="margin:5px 0;border-color:#e5e7eb">
+      <span style="font-size:.85em">
+        🟢 ${v.vehicle_status}<br>
+        ${v.speed != null ? `⚡ ${v.speed.toFixed(0)} km/h<br>` : ''}
+        ${v.delivery_reference ? `📦 ${v.delivery_reference}<br>
+        ${v.origin} → ${v.destination}` : 'Pas de livraison active'}
+      </span>
+    </div>`;
+}
+
+function renderVehicleList(data) {
+  const el = document.getElementById('vehicle-list');
+  if (!data.length) { el.innerHTML = '<p style="color:#64748b;font-size:.8rem">Aucun véhicule.</p>'; return; }
+
+  el.innerHTML = data.map(v => {
+    const c = STATUS_COLOR[v.vehicle_status] || '#94a3b8';
+    const seen = v.last_seen ? new Date(v.last_seen).toLocaleTimeString('fr-FR') : '—';
+    return `
+      <div class="vehicle-card" onclick="flyTo(${v.latitude},${v.longitude})">
+        <div class="vehicle-card-header">
+          <span class="status-dot dot-${v.vehicle_status}"></span>
+          <span class="vehicle-plate">${v.license_plate}</span>
+        </div>
+        <div class="vehicle-driver">${v.driver_name}</div>
+        <div class="vehicle-meta">
+          ${v.speed != null ? `<span>⚡ ${v.speed.toFixed(0)} km/h</span>` : ''}
+          <span>🕐 ${seen}</span>
+        </div>
+        ${v.delivery_reference
+          ? `<span class="delivery-badge">📦 ${v.delivery_reference} · ${v.origin} → ${v.destination}</span>`
+          : ''}
+      </div>`;
+  }).join('');
+}
+
+function flyTo(lat, lon) { map.flyTo([lat, lon], 13, { duration: 1 }); }
+
+// ── Résumé des véhicules TC dans la sidebar ────────────────────────────────
+function renderTransitVehicleSummary() {
+  const el = document.getElementById('vehicle-list');
+  if (!el) return;
+
+  const TYPE_ORDER = ['Métro', 'RER', 'Tramway', 'Bus', 'Ligne', 'Train'];
+  const typeIcon = { Métro: '🚇', RER: '🚆', Tramway: '🚋', Bus: '🚌', Ligne: '🚌', Train: '🚄' };
+
+  // Regrouper par type + ville
+  const groups = {};
+  for (const r of TRANSIT_ROUTES) {
+    const type = getRouteType(r.name);
+    const key  = `${type}|${r.city}`;
+    if (!groups[key]) groups[key] = { type, city: r.city, routes: [], count: 0, color: r.color };
+    groups[key].routes.push(r.name);
+    groups[key].count += getVehiclePositions(r).length;
+  }
+
+  const cards = Object.values(groups)
+    .sort((a, b) => TYPE_ORDER.indexOf(a.type) - TYPE_ORDER.indexOf(b.type))
+    .map(g => `
+      <div class="vehicle-card">
+        <div class="vehicle-card-header">
+          <span style="font-size:.82rem;font-weight:700;color:#e2e8f0">
+            ${typeIcon[g.type] || '🚌'} ${g.type}
+          </span>
+          <span style="margin-left:auto;padding:2px 8px;border-radius:999px;font-size:.65rem;
+            font-weight:700;background:#38bdf822;color:#38bdf8;border:1px solid #38bdf855">
+            ● En service
+          </span>
+        </div>
+        <div class="vehicle-meta">
+          <span style="color:#94a3b8">${g.city}</span>
+          <span>🚍 ${g.count} veh.</span>
+        </div>
+        <div style="font-size:.65rem;color:#64748b;margin-top:3px">${g.routes.join(' · ')}</div>
+      </div>`).join('');
+
+  el.innerHTML = cards || '<p style="color:#64748b;font-size:.8rem">Aucun véhicule TC.</p>';
+}
+
+// ── Refresh traffic overlays ───────────────────────────────────────────────
+async function refreshTraffic() {
+  const data = await fetch(`${API}/traffic/latest`).then(r => r.json()).catch(() => []);
+  const el = document.getElementById('traffic-list');
+
+  // Remove old circles
+  Object.values(trafficCircles).forEach(c => map.removeLayer(c));
+  trafficCircles = {};
+
+  if (!data.length) {
+    el.innerHTML = '<p style="color:#64748b;font-size:.8rem">Aucune donnée trafic.</p>';
+    return;
+  }
+
+  el.innerHTML = '';
+  for (const city of data) {
+    const status = city.traffic_status || 'FLUID';
+    const color  = TRAFFIC_COLOR[status] || '#94a3b8';
+    const coords = CITY_COORDS[city.city];
+    const delayMin = Math.round((city.avg_delay_seconds || 0) / 60);
+    const maxMin   = Math.round((city.max_delay_seconds  || 0) / 60);
+
+    // Draw semi-transparent circle on the map
+    if (coords) {
+      trafficCircles[city.city] = L.circle(coords, {
+        radius: 12000,
+        color:       color,
+        fillColor:   color,
+        fillOpacity: 0.12,
+        weight:      2,
+        dashArray:   '6 4',
+        opacity:     0.7,
+      })
+      .addTo(map)
+      .bindTooltip(
+        `<b>${city.city}</b><br>` +
+        `${TRAFFIC_LABEL[status] || status}<br>` +
+        `Retard moyen : ${delayMin} min`,
+        { sticky: true, className: 'city-tooltip' }
+      );
+    }
+
+    // Sidebar card
+    const routes = (city.routes || []).map(r => {
+      const rd = Math.round((r.delay_seconds || 0) / 60);
+      const rc = rd > 10 ? '#ef4444' : rd > 3 ? '#f97316' : '#22c55e';
+      const name = r.route_name.replace(`${city.city} - `, '');
+      return `<div style="display:flex;justify-content:space-between;font-size:.7rem;color:#94a3b8;
+                padding:3px 0;border-top:1px solid #334155;margin-top:3px">
+                <span>${name}</span>
+                <span style="color:${rc};font-weight:700">+${rd} min</span>
+              </div>`;
+    }).join('');
+
+    el.innerHTML += `
+      <div class="vehicle-card" onclick="${coords ? `flyTo(${coords[0]},${coords[1]})` : ''}">
+        <div class="vehicle-card-header">
+          <span class="status-dot" style="background:${color}${status === 'FLUID' ? '' : ';box-shadow:0 0 6px ' + color}"></span>
+          <span class="vehicle-plate">${city.city}</span>
+          <span style="margin-left:auto;padding:2px 8px;border-radius:999px;font-size:.68rem;
+            font-weight:700;background:${color}22;color:${color};border:1px solid ${color}55">
+            ${TRAFFIC_LABEL[status] || status}
+          </span>
+        </div>
+        <div class="vehicle-meta">
+          <span>⏱ moy. ${delayMin} min</span>
+          <span>⚠ max ${maxMin} min</span>
+          <span>🛣 ${city.route_count} axe(s)</span>
+        </div>
+        ${routes}
+      </div>`;
+  }
+}
+
+// ── Refresh ML risks ───────────────────────────────────────────────────────
+async function refreshRisks() {
+  const data = await fetch(`${API}/predictions/ml-delay-risk`).then(r => r.json()).catch(() => []);
+  const el = document.getElementById('risk-list');
+
+  if (!data.length) { el.innerHTML = '<p style="color:#64748b;font-size:.8rem">Aucune livraison active.</p>'; return; }
+
+  el.innerHTML = data.map(r => {
+    const prob = r.delay_probability != null ? (r.delay_probability * 100).toFixed(0) : null;
+    const barColor = r.risk_level === 'HIGH' ? '#ef4444' : r.risk_level === 'MEDIUM' ? '#f97316' : '#22c55e';
+
+    return `
+      <div class="risk-card">
+        <div class="risk-header">
+          <span class="risk-ref">${r.reference}</span>
+          <span class="risk-badge risk-${r.risk_level}">${r.risk_level}</span>
+        </div>
+        <div class="risk-prob">${r.origin} → ${r.destination}</div>
+        ${prob != null ? `
+        <div class="prob-bar-track">
+          <div class="prob-bar-fill" style="width:${prob}%;background:${barColor}"></div>
+        </div>
+        <div class="risk-prob" style="margin-top:3px">Probabilité de retard : ${prob}%</div>` : ''}
+        ${r.risk_factors?.length ? `
+        <div class="risk-factors">
+          ${r.risk_factors.map(f => `<span class="risk-factor-tag">${f}</span>`).join('')}
+        </div>` : ''}
+        <div class="risk-reco">${r.recommendation}</div>
+      </div>`;
+  }).join('');
+}
+
+// ── Countdown timer ────────────────────────────────────────────────────────
+let _tick = 10;
+function startCountdown() {
+  setInterval(async () => {
+    _tick--;
+    if (_tick <= 0) {
+      _tick = 10;
+      await refreshPositions();
+    }
+    document.getElementById('countdown').textContent = _tick;
+  }, 1000);
+
+  // Traffic & TC refresh every 60s
+  setInterval(refreshTraffic, 60_000);
+  setInterval(refreshTransitList, 60_000);
+}
+
+// ── Boot ──────────────────────────────────────────────────────────────────
+initMap();
+</script>
+
+<!-- Leaflet tooltip override for city labels -->
+<style>
+  .city-tooltip {
+    background: rgba(15,23,42,0.85) !important;
+    border: 1px solid #6366f1 !important;
+    color: #c4b5fd !important;
+    font-weight: 600;
+    font-size: 0.75rem;
+    padding: 2px 8px !important;
+    border-radius: 4px !important;
+    box-shadow: none !important;
+  }
+  .city-tooltip::before { display: none !important; }
+  .leaflet-popup-content-wrapper {
+    background: #1e293b !important;
+    color: #e2e8f0 !important;
+    border: 1px solid #334155 !important;
+    box-shadow: 0 4px 16px rgba(0,0,0,0.5) !important;
+  }
+  .leaflet-popup-tip { background: #1e293b !important; }
+</style>
+</body>
+</html>
