@@ -115,6 +115,9 @@ function RiskCard({ r }) {
   const badge = RISK_BADGE[r.risk_level] ?? RISK_BADGE.UNKNOWN
   const barColor = BAR_COLOR[r.risk_level] ?? '#64748b'
   const prob = r.delay_probability != null ? r.delay_probability * 100 : null
+  const contextLabel = r.context_city
+    ? `Zone trafic: ${r.context_city}`
+    : `${r.origin} → ${r.destination}`
 
   return (
     <div className="risk-card">
@@ -122,7 +125,7 @@ function RiskCard({ r }) {
         <span className="risk-ref">{r.reference}</span>
         <span className={`badge ${badge.cls}`}>{badge.label}</span>
       </div>
-      <div className="risk-route">{r.origin} → {r.destination}</div>
+      <div className="risk-route">{contextLabel}</div>
 
       {prob != null && (
         <>

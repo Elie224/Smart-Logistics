@@ -373,10 +373,15 @@ def get_ml_delay_risk() -> list[dict]:
     for d in deliveries:
         dest   = (d.get("destination") or "").lower()
         origin = (d.get("origin")      or "").lower()
-        w  = weather_map.get(dest, {})
-        # TC disponible uniquement pour Paris & Lille : lookup par ville d'origine
-        t  = transit_map.get(origin, {}) if origin in TC_CITIES else {}
-        tr = traffic_map.get(origin, {})   # trafic mesuré à l'origine
+
+        # Ville de contexte opérationnel (trafic/TC/météo): Paris ou Lille
+        # Priorité à l'origine, sinon destination.
+        context_city = origin if origin in TC_CITIES else dest if dest in TC_CITIES else origin or dest
+
+        w  = weather_map.get(context_city, {})
+        # TC disponible uniquement pour Paris & Lille
+        t  = transit_map.get(context_city, {}) if context_city in TC_CITIES else {}
+        tr = traffic_map.get(context_city, {})
 
         dep_time = d.get("departure_time") or now
         if hasattr(dep_time, "hour"):
@@ -422,6 +427,7 @@ def get_ml_delay_risk() -> list[dict]:
             "reference":             d["reference"],
             "origin":                d["origin"],
             "destination":           d["destination"],
+            "context_city":          context_city.capitalize() if context_city else None,
             "status":                d["status"],
             "expected_arrival_time": d.get("expected_arrival_time"),
             **prediction,
