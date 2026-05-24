@@ -47,7 +47,7 @@ META_PATH  = os.path.join(MODELS_DIR, "delay_model_meta.json")
 
 ALLOW_SYNTHETIC = os.getenv("ALLOW_SYNTHETIC", "false").lower() in ("1", "true", "yes")
 SYNTHETIC_SAMPLES = int(os.getenv("SYNTHETIC_SAMPLES", "5000")) if ALLOW_SYNTHETIC else 0
-MIN_REAL_FOR_TRAIN = int(os.getenv("MIN_REAL_FOR_TRAIN", "30"))
+MIN_REAL_FOR_TRAIN = int(os.getenv("MIN_REAL_FOR_TRAIN", "200"))
 
 TRANSIT_STATUS_MAP = {"NORMAL": 0, "REDUCED": 1, "DISRUPTED": 2}
 
@@ -96,22 +96,164 @@ def get_connection():
 # Chargement des données réelles
 # ---------------------------------------------------------------------------
 
+def ensure_real_observations_table(conn) -> None:
+    """Table persistante d'observations réelles utilisées pour l'entraînement."""
+    with conn.cursor() as cur:
+        cur.execute(
+            """
+            CREATE TABLE IF NOT EXISTS ml_real_observations (
+                id SERIAL PRIMARY KEY,
+                delivery_id INTEGER UNIQUE NOT NULL,
+                departure_time TIMESTAMPTZ NOT NULL,
+                departure_hour INTEGER NOT NULL,
+                departure_dow INTEGER NOT NULL,
+                departure_month INTEGER NOT NULL,
+                temperature DOUBLE PRECISION NOT NULL,
+                wind_speed DOUBLE PRECISION NOT NULL,
+                traffic_delay_s DOUBLE PRECISION NOT NULL,
+                route_duration_s DOUBLE PRECISION NOT NULL,
+                transit_disruptions INTEGER NOT NULL,
+                transit_blocking INTEGER NOT NULL,
+                transit_status VARCHAR(50) NOT NULL,
+                is_delayed INTEGER NOT NULL,
+                created_at TIMESTAMPTZ DEFAULT NOW() NOT NULL
+            );
+            """
+        )
+        cur.execute(
+            """
+            CREATE INDEX IF NOT EXISTS idx_ml_real_observations_created_at
+            ON ml_real_observations (created_at DESC);
+            """
+        )
+    conn.commit()
+
+
+def backfill_real_observations(conn) -> int:
+    """
+    Alimente automatiquement les observations réelles depuis les livraisons DELIVERED.
+    Features prises au plus près du départ (fallbacks robustes si historique manquant).
+    """
+    with conn.cursor() as cur:
+        cur.execute(
+            """
+            INSERT INTO ml_real_observations (
+                delivery_id,
+                departure_time,
+                departure_hour,
+                departure_dow,
+                departure_month,
+                temperature,
+                wind_speed,
+                traffic_delay_s,
+                route_duration_s,
+                transit_disruptions,
+                transit_blocking,
+                transit_status,
+                is_delayed
+            )
+            SELECT
+                d.id AS delivery_id,
+                d.departure_time,
+                EXTRACT(HOUR FROM d.departure_time)::int AS departure_hour,
+                EXTRACT(DOW  FROM d.departure_time)::int AS departure_dow,
+                EXTRACT(MONTH FROM d.departure_time)::int AS departure_month,
+                COALESCE(w.temperature, 12.0) AS temperature,
+                COALESCE(w.wind_speed, 3.0)   AS wind_speed,
+                COALESCE(t.avg_delay_s, 0.0)  AS traffic_delay_s,
+                GREATEST(
+                    300.0,
+                    COALESCE(
+                        EXTRACT(EPOCH FROM (d.expected_arrival_time - d.departure_time)),
+                        t.avg_duration_s,
+                        1800.0
+                    )
+                ) AS route_duration_s,
+                COALESCE(tc.total_disruptions, 0) AS transit_disruptions,
+                COALESCE(tc.blocking_disruptions, 0) AS transit_blocking,
+                COALESCE(tc.network_status, 'NORMAL') AS transit_status,
+                CASE
+                    WHEN d.delayed THEN 1
+                    WHEN d.actual_arrival_time > d.expected_arrival_time + INTERVAL '10 minutes' THEN 1
+                    ELSE 0
+                END AS is_delayed
+            FROM deliveries d
+            LEFT JOIN LATERAL (
+                SELECT wd.temperature, wd.wind_speed
+                FROM weather_data wd
+                WHERE LOWER(wd.city) = LOWER(d.destination)
+                  AND wd.created_at <= d.departure_time
+                ORDER BY wd.created_at DESC
+                LIMIT 1
+            ) w ON TRUE
+            LEFT JOIN LATERAL (
+                SELECT
+                    AVG(GREATEST(td.delay_seconds, 0)) AS avg_delay_s,
+                    AVG(NULLIF(td.duration_seconds, 0)) AS avg_duration_s
+                FROM traffic_data td
+                WHERE LOWER(td.city) = LOWER(d.origin)
+                  AND td.created_at BETWEEN d.departure_time - INTERVAL '90 minutes'
+                                       AND d.departure_time + INTERVAL '30 minutes'
+            ) t ON TRUE
+            LEFT JOIN LATERAL (
+                SELECT
+                    SUM(COALESCE(tdd.total_disruptions, 0))::int AS total_disruptions,
+                    SUM(COALESCE(tdd.blocking_disruptions, 0))::int AS blocking_disruptions,
+                    CASE
+                        WHEN SUM(COALESCE(tdd.blocking_disruptions, 0)) > 0 THEN 'DISRUPTED'
+                        WHEN SUM(COALESCE(tdd.total_disruptions, 0)) > 0 THEN 'REDUCED'
+                        ELSE 'NORMAL'
+                    END AS network_status
+                FROM (
+                    SELECT DISTINCT ON (line_name)
+                        line_name,
+                        total_disruptions,
+                        blocking_disruptions
+                    FROM transit_data
+                    WHERE LOWER(city) = LOWER(d.origin)
+                      AND created_at <= d.departure_time
+                    ORDER BY line_name, created_at DESC
+                ) tdd
+            ) tc ON TRUE
+            WHERE d.status = 'DELIVERED'
+              AND d.departure_time IS NOT NULL
+              AND d.expected_arrival_time IS NOT NULL
+              AND d.actual_arrival_time IS NOT NULL
+            ON CONFLICT (delivery_id) DO NOTHING;
+            """
+        )
+        inserted = cur.rowcount if cur.rowcount is not None else 0
+    conn.commit()
+    return inserted
+
+
 def load_real_data() -> list[tuple]:
     conn = get_connection()
     try:
+        ensure_real_observations_table(conn)
+        inserted = backfill_real_observations(conn)
+        if inserted > 0:
+            print(f"[ML] {inserted} nouvelles observations réelles ajoutées.")
+
         with conn.cursor() as cur:
-            cur.execute("""
+            cur.execute(
+                """
                 SELECT
-                    departure_hour, departure_dow,
-                    EXTRACT(month FROM departure_time)::integer AS departure_month,
-                    temperature, wind_speed,
+                    departure_hour,
+                    departure_dow,
+                    departure_month,
+                    temperature,
+                    wind_speed,
                     traffic_delay_s,
                     route_duration_s,
-                    transit_disruptions, transit_blocking,
+                    transit_disruptions,
+                    transit_blocking,
                     transit_status,
                     is_delayed
-                FROM ml_delivery_dataset
-            """)
+                FROM ml_real_observations
+                ORDER BY departure_time DESC
+                """
+            )
             return cur.fetchall()
     finally:
         conn.close()
