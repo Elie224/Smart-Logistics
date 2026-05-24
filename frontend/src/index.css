@@ -49,6 +49,44 @@ body {
   overflow: hidden;
 }
 
+.mobile-menu-toggle,
+.content-menu-btn {
+  display: none;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid rgba(14, 165, 165, 0.32);
+  background: rgba(14, 165, 165, 0.08);
+  color: #0f766e;
+  border-radius: 10px;
+  cursor: pointer;
+  line-height: 1;
+}
+
+.mobile-menu-toggle {
+  position: fixed;
+  left: 12px;
+  top: 12px;
+  width: 38px;
+  height: 38px;
+  z-index: 40;
+  font-size: 1.05rem;
+}
+
+.mobile-menu-toggle.map-only {
+  display: inline-flex;
+}
+
+.content-menu-btn {
+  width: 34px;
+  height: 34px;
+  font-size: 1rem;
+  flex-shrink: 0;
+}
+
+.sidebar-backdrop {
+  display: none;
+}
+
 .sidebar {
   width: 272px;
   background: linear-gradient(180deg, #ffffff 0%, #fbfbfc 100%);
@@ -237,6 +275,7 @@ body {
   overflow-x: hidden;
   display: flex;
   flex-direction: column;
+  min-width: 0;
 }
 
 .content-header {
@@ -313,6 +352,12 @@ body {
   grid-template-columns: repeat(auto-fill, minmax(208px, 1fr));
   gap: 16px;
   margin-bottom: 24px;
+}
+
+.toolbar-end {
+  display: flex;
+  justify-content: flex-end;
+  margin-bottom: 16px;
 }
 
 .kpi-card {
@@ -414,7 +459,8 @@ body {
 }
 
 .table-card {
-  overflow: hidden;
+  overflow-x: auto;
+  overflow-y: hidden;
   margin-bottom: 24px;
 }
 
@@ -428,6 +474,7 @@ body {
 
 table {
   width: 100%;
+  min-width: 620px;
   border-collapse: collapse;
   font-size: 0.83rem;
 }
@@ -645,6 +692,110 @@ tbody td {
   font-size: 0.9rem;
 }
 
+.traffic-cities-row,
+.transit-cities-row {
+  display: grid;
+  gap: 16px;
+  padding: 16px 0 4px;
+}
+
+.traffic-cities-row {
+  grid-template-columns: repeat(auto-fit, minmax(310px, 1fr));
+}
+
+.transit-cities-row {
+  grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+}
+
+.traffic-city-card,
+.transit-city-card {
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 14px 16px;
+  min-width: 0;
+}
+
+.traffic-kpis,
+.transit-kpis {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 14px 20px;
+}
+
+.traffic-routes {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.traffic-route-row {
+  display: flex;
+  justify-content: space-between;
+  gap: 10px;
+  font-size: 0.78rem;
+  color: var(--muted);
+  padding: 4px 0;
+  border-top: 1px solid var(--border);
+}
+
+.traffic-route-name {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.live-alerts {
+  position: fixed;
+  bottom: 24px;
+  right: 24px;
+  display: flex;
+  flex-direction: column-reverse;
+  gap: 8px;
+  z-index: 9999;
+  pointer-events: none;
+}
+
+.live-alert-item {
+  pointer-events: auto;
+}
+
+.live-alert-toast {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  border-radius: 8px;
+  padding: 10px 14px;
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.22);
+  width: min(420px, calc(100vw - 28px));
+  animation: slideInAlert 0.22s ease;
+}
+
+.live-alert-icon {
+  font-size: 1.1rem;
+  flex-shrink: 0;
+}
+
+.live-alert-message {
+  color: var(--text);
+  font-size: 0.79rem;
+  font-weight: 500;
+  flex: 1;
+  line-height: 1.45;
+}
+
+.live-alert-close {
+  background: none;
+  border: none;
+  color: #64748b;
+  cursor: pointer;
+  font-size: 1.1rem;
+  padding: 0 2px;
+  flex-shrink: 0;
+  line-height: 1;
+}
+
 ::-webkit-scrollbar {
   width: 8px;
   height: 8px;
@@ -661,8 +812,9 @@ tbody td {
 
 /* Chat */
 .chat-layout {
-  height: calc(100vh - 124px);
+  height: calc(100dvh - 124px);
   max-height: 830px;
+  min-height: 360px;
   display: flex;
   flex-direction: column;
 }
@@ -672,7 +824,9 @@ tbody td {
   overflow-y: auto;
   border: 1px solid var(--border);
   border-radius: 14px 14px 0 0;
-  background: linear-gradient(175deg, rgba(17, 45, 61, 0.92), rgba(11, 33, 47, 0.92));
+  background:
+    radial-gradient(circle at 0% 0%, rgba(14, 165, 165, 0.08), transparent 34%),
+    linear-gradient(180deg, #ffffff 0%, #f7f8fa 100%);
   padding: 18px 16px 12px;
 }
 
@@ -699,14 +853,14 @@ tbody td {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  background: rgba(86, 214, 255, 0.18);
-  border: 1px solid rgba(86, 214, 255, 0.26);
+  background: rgba(14, 165, 165, 0.12);
+  border: 1px solid rgba(14, 165, 165, 0.28);
   flex-shrink: 0;
 }
 
 .chat-avatar.user-avatar {
-  background: rgba(38, 208, 181, 0.28);
-  border-color: rgba(38, 208, 181, 0.4);
+  background: #111111;
+  border-color: #111111;
 }
 
 .chat-bubble {
@@ -720,16 +874,17 @@ tbody td {
 }
 
 .chat-bubble.assistant {
-  color: var(--fg);
+  color: var(--text);
   border-bottom-left-radius: 5px;
-  border: 1px solid rgba(86, 214, 255, 0.24);
-  background: rgba(17, 50, 69, 0.92);
+  border: 1px solid var(--border);
+  background: #ffffff;
+  box-shadow: 0 6px 16px rgba(15, 23, 42, 0.07);
 }
 
 .chat-bubble.user {
-  color: #032128;
+  color: #ffffff;
   border-bottom-right-radius: 5px;
-  background: linear-gradient(135deg, #26d0b5, #77ebff);
+  background: linear-gradient(135deg, #111111, #0f766e);
 }
 
 .typing-bubble {
@@ -775,14 +930,14 @@ tbody td {
   padding: 10px 12px;
   border-left: 1px solid var(--border);
   border-right: 1px solid var(--border);
-  background: rgba(10, 29, 42, 0.72);
+  background: #f8fafc;
 }
 
 .suggestion-chip {
   border-radius: 999px;
-  border: 1px solid rgba(111, 176, 210, 0.38);
-  background: rgba(16, 42, 58, 0.8);
-  color: #cae4f1;
+  border: 1px solid rgba(14, 165, 165, 0.32);
+  background: rgba(14, 165, 165, 0.08);
+  color: #0f766e;
   padding: 5px 11px;
   font-size: 0.77rem;
   cursor: pointer;
@@ -791,8 +946,8 @@ tbody td {
 
 .suggestion-chip:hover:not(:disabled) {
   transform: translateY(-1px);
-  color: #99efff;
-  border-color: #59deff;
+  color: #111111;
+  border-color: rgba(14, 165, 165, 0.52);
 }
 
 .suggestion-chip:disabled {
@@ -807,7 +962,7 @@ tbody td {
   border: 1px solid var(--border);
   border-top: none;
   border-radius: 0 0 14px 14px;
-  background: rgba(16, 42, 58, 0.9);
+  background: #ffffff;
 }
 
 .chat-input {
@@ -815,9 +970,9 @@ tbody td {
   resize: none;
   padding: 8px 12px;
   border-radius: 10px;
-  border: 1px solid rgba(111, 176, 210, 0.32);
-  color: var(--fg);
-  background: rgba(8, 27, 38, 0.92);
+  border: 1px solid var(--border);
+  color: var(--text);
+  background: #f8fafc;
   font-size: 0.88rem;
   font-family: inherit;
   line-height: 1.5;
@@ -825,7 +980,7 @@ tbody td {
 
 .chat-input:focus {
   outline: none;
-  border-color: #63dcff;
+  border-color: rgba(14, 165, 165, 0.58);
 }
 
 .chat-send-btn {
@@ -834,8 +989,8 @@ tbody td {
   min-width: 52px;
   align-self: stretch;
   cursor: pointer;
-  color: #032128;
-  background: linear-gradient(140deg, #26d0b5, #77ebff);
+  color: #ffffff;
+  background: linear-gradient(140deg, #111111, #0f766e);
   font-size: 1.1rem;
   transition: transform 0.15s ease, filter 0.15s ease;
 }
@@ -852,37 +1007,58 @@ tbody td {
 
 /* Responsive */
 @media (max-width: 1040px) {
-  .app {
-    flex-direction: column;
+  .sidebar {
+    position: fixed;
+    left: 0;
+    top: 0;
+    bottom: 0;
+    width: min(84vw, 312px);
+    z-index: 50;
+    transform: translateX(-100%);
+    transition: transform 0.22s ease;
+    border-right: 1px solid var(--border);
+    box-shadow: 10px 0 30px rgba(15, 23, 42, 0.2);
   }
 
-  .sidebar {
-    width: 100%;
-    min-height: auto;
-    border-right: none;
-    border-bottom: 1px solid rgba(103, 175, 212, 0.2);
+  .sidebar.open {
+    transform: translateX(0);
+  }
+
+  .sidebar-backdrop {
+    display: block;
+    position: fixed;
+    inset: 0;
+    background: rgba(15, 23, 42, 0.3);
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity 0.2s ease;
+    z-index: 45;
+  }
+
+  .sidebar-backdrop.show {
+    opacity: 1;
+    pointer-events: auto;
   }
 
   .sidebar-logo {
-    padding: 14px 14px 12px;
+    padding: 18px 14px 12px;
   }
 
   .sidebar-nav {
-    flex-direction: row;
-    overflow-x: auto;
-    overflow-y: hidden;
-    padding: 10px 8px 10px;
-    gap: 8px;
+    flex-direction: column;
+    overflow-y: auto;
+    overflow-x: hidden;
+    padding: 12px 10px;
   }
 
   .nav-section-label {
-    display: none;
+    display: block;
   }
 
   .nav-item {
-    width: auto;
-    min-width: max-content;
-    padding: 8px 11px;
+    width: 100%;
+    min-width: 0;
+    padding: 10px 12px;
   }
 
   .nav-item:hover {
@@ -890,11 +1066,20 @@ tbody td {
   }
 
   .sidebar-footer {
+    display: block;
+  }
+
+  .mobile-menu-toggle,
+  .content-menu-btn {
+    display: inline-flex;
+  }
+
+  .mobile-menu-toggle {
     display: none;
   }
 
   .content-header {
-    padding: 14px 18px 12px;
+    padding: 14px 18px 12px 56px;
   }
 
   .page-body {
@@ -907,14 +1092,33 @@ tbody td {
   }
 
   .chat-layout {
-    height: calc(100vh - 208px);
+    height: calc(100dvh - 208px);
     min-height: 500px;
   }
 }
 
 @media (max-width: 700px) {
+  .content-header {
+    padding: 10px 12px 9px 52px;
+    gap: 10px;
+  }
+
+  .content-header-icon {
+    width: 34px;
+    height: 34px;
+  }
+
+  .content-header .sub {
+    font-size: 0.72rem;
+  }
+
+  .page-body {
+    padding: 12px;
+  }
+
   .kpi-grid {
     grid-template-columns: 1fr 1fr;
+    gap: 10px;
   }
 
   .kpi-value {
@@ -933,12 +1137,61 @@ tbody td {
   }
 
   .chat-layout {
-    height: calc(100vh - 218px);
-    min-height: 440px;
+    height: calc(100dvh - 198px);
+    min-height: 320px;
+  }
+
+  .traffic-cities-row,
+  .transit-cities-row {
+    grid-template-columns: 1fr;
+    gap: 10px;
+    padding-top: 12px;
+  }
+
+  .traffic-city-card,
+  .transit-city-card {
+    padding: 12px;
+  }
+
+  .table-card-header {
+    padding: 12px;
+  }
+
+  thead th,
+  tbody td {
+    padding-left: 10px;
+    padding-right: 10px;
+  }
+
+  table {
+    min-width: 560px;
+  }
+
+  .live-alerts {
+    left: 10px;
+    right: 10px;
+    bottom: 12px;
+  }
+
+  .live-alert-toast {
+    width: 100%;
+    padding: 9px 11px;
   }
 }
 
 @media (max-width: 460px) {
+  .mobile-menu-toggle {
+    width: 34px;
+    height: 34px;
+    left: 10px;
+    top: 10px;
+  }
+
+  .content-menu-btn {
+    width: 30px;
+    height: 30px;
+  }
+
   .kpi-grid {
     grid-template-columns: 1fr;
   }

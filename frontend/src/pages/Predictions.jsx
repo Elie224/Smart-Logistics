@@ -156,7 +156,7 @@ export default function Predictions() {
 
   return (
     <div className="page-body">
-      <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: 16 }}>
+      <div className="toolbar-end">
         <button className="refresh-btn" onClick={refresh}>⟳ Actualiser</button>
       </div>
 

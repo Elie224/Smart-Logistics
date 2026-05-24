@@ -127,31 +127,31 @@ export default function Dashboard() {
       {traffic && traffic.length > 0 && (
         <div className="table-card" style={{ marginBottom: 24 }}>
           <div className="table-card-header">Trafic urbain en temps réel</div>
-          <div style={{ display: 'flex', gap: 16, padding: '16px 0 4px' }}>
+          <div className="traffic-cities-row">
             {traffic.map(city => {
               const delayMin = Math.round((city.avg_delay_seconds || 0) / 60)
               const maxMin   = Math.round((city.max_delay_seconds  || 0) / 60)
               const statusColor = city.traffic_status === 'CONGESTED' ? '#ef4444' : city.traffic_status === 'SLOW' ? '#f97316' : '#22c55e'
               const statusLabel = city.traffic_status === 'CONGESTED' ? 'Congestionné' : city.traffic_status === 'SLOW' ? 'Ralenti' : 'Fluide'
               return (
-                <div key={city.city} style={{ flex: 1, background: 'var(--bg)', border: '1px solid var(--border)', borderRadius: 12, padding: '16px 20px' }}>
+                <div key={city.city} className="traffic-city-card">
                   <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
                     <span style={{ fontWeight: 700, fontSize: '1rem' }}>{city.city}</span>
                     <span style={{ padding: '3px 12px', borderRadius: 999, fontSize: '0.75rem', fontWeight: 700, background: statusColor + '22', color: statusColor, border: `1px solid ${statusColor}55` }}>{statusLabel}</span>
                   </div>
-                  <div style={{ display: 'flex', gap: 24, marginBottom: 12 }}>
+                  <div className="traffic-kpis" style={{ marginBottom: 12 }}>
                     <div><div style={{ fontSize: '0.7rem', color: 'var(--muted)', marginBottom: 2 }}>Retard moyen</div><div style={{ fontSize: '1.4rem', fontWeight: 700, color: statusColor }}>{delayMin} min</div></div>
                     <div><div style={{ fontSize: '0.7rem', color: 'var(--muted)', marginBottom: 2 }}>Retard max</div><div style={{ fontSize: '1.4rem', fontWeight: 700, color: 'var(--muted)' }}>{maxMin} min</div></div>
                     <div><div style={{ fontSize: '0.7rem', color: 'var(--muted)', marginBottom: 2 }}>Axes surveillés</div><div style={{ fontSize: '1.4rem', fontWeight: 700 }}>{city.route_count}</div></div>
                   </div>
                   {city.routes && (
-                    <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+                    <div className="traffic-routes">
                       {city.routes.map(r => {
                         const rd = Math.round((r.delay_seconds || 0) / 60)
                         const rc = rd > 10 ? '#ef4444' : rd > 3 ? '#f97316' : '#22c55e'
                         return (
-                          <div key={r.route_name} style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.78rem', color: 'var(--muted)', padding: '4px 0', borderTop: '1px solid var(--border)' }}>
-                            <span>{r.route_name.replace(`${city.city} - `, '')}</span>
+                          <div key={r.route_name} className="traffic-route-row">
+                            <span className="traffic-route-name">{r.route_name.replace(`${city.city} - `, '')}</span>
                             <span style={{ color: rc, fontWeight: 600 }}>+{rd} min</span>
                           </div>
                         )
@@ -178,7 +178,7 @@ export default function Dashboard() {
               <span>Réseau de transport en commun</span>
               <span style={{ fontSize: '0.72rem', color: '#475569', fontWeight: 400 }}>→ Voir détails dans <b style={{ color: '#6366f1' }}>Transports</b></span>
             </div>
-            <div style={{ display: 'flex', gap: 16, padding: '14px 0 4px', flexWrap: 'wrap' }}>
+            <div className="transit-cities-row">
               {Object.entries(byCity).map(([city, lines]) => {
                 const disrupted = lines.filter(l => l.network_status === 'DISRUPTED').length
                 const reduced   = lines.filter(l => l.network_status === 'REDUCED').length
@@ -186,12 +186,12 @@ export default function Dashboard() {
                 const stCol   = disrupted > 0 ? '#ef4444' : reduced > 0 ? '#f59e0b' : '#22c55e'
                 const stLabel = disrupted > 0 ? 'Perturbations' : reduced > 0 ? 'Service réduit' : 'Trafic normal'
                 return (
-                  <div key={city} style={{ flex: '1 1 200px', background: 'var(--bg)', border: '1px solid var(--border)', borderRadius: 12, padding: '14px 18px' }}>
+                  <div key={city} className="transit-city-card">
                     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 }}>
                       <span style={{ fontWeight: 700, fontSize: '0.95rem' }}>{city}</span>
                       <span style={{ padding: '2px 10px', borderRadius: 999, fontSize: '0.7rem', fontWeight: 700, background: stCol + '18', color: stCol, border: `1px solid ${stCol}44` }}>{stLabel}</span>
                     </div>
-                    <div style={{ display: 'flex', gap: 18 }}>
+                    <div className="transit-kpis">
                       <div><div style={{ fontSize: '0.65rem', color: '#64748b' }}>Lignes</div><div style={{ fontSize: '1.4rem', fontWeight: 700 }}>{lines.length}</div></div>
                       {disrupted > 0 && <div><div style={{ fontSize: '0.65rem', color: '#64748b' }}>Perturbées</div><div style={{ fontSize: '1.4rem', fontWeight: 700, color: '#ef4444' }}>{disrupted}</div></div>}
                       {reduced   > 0 && <div><div style={{ fontSize: '0.65rem', color: '#64748b' }}>Réduites</div><div style={{ fontSize: '1.4rem', fontWeight: 700, color: '#f59e0b' }}>{reduced}</div></div>}

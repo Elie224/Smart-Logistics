@@ -41,13 +41,32 @@ const PAGES = [
 
 export default function App() {
   const [page, setPage] = useState('dashboard')
+  const [mobileMenuOpen, setMobileMenuOpen] = useState(false)
   const active = PAGES.find(p => p.id === page)
   const { alerts, connected, dismissAlert } = useWebSocket('/api/v1/ws/live')
 
+  const selectPage = (id) => {
+    setPage(id)
+    setMobileMenuOpen(false)
+  }
+
   return (
     <div className="app">
+      <button
+        type="button"
+        className={`mobile-menu-toggle${page === 'map' ? ' map-only' : ''}`}
+        onClick={() => setMobileMenuOpen((v) => !v)}
+        aria-label="Ouvrir le menu"
+      >
+        ☰
+      </button>
+      <div
+        className={`sidebar-backdrop${mobileMenuOpen ? ' show' : ''}`}
+        onClick={() => setMobileMenuOpen(false)}
+      />
+
       {/* ── Sidebar ── */}
-      <aside className="sidebar">
+      <aside className={`sidebar${mobileMenuOpen ? ' open' : ''}`}>
         <div className="sidebar-logo">
           <div className="logo-mark">SL</div>
           <div>
@@ -62,7 +81,7 @@ export default function App() {
             <button
               key={p.id}
               className={`nav-item${page === p.id ? ' active' : ''}`}
-              onClick={() => setPage(p.id)}
+              onClick={() => selectPage(p.id)}
             >
               <span className="nav-icon"><Icon id={p.id} /></span>
               <span className="nav-label">{p.label}</span>
@@ -86,6 +105,14 @@ export default function App() {
       <div className={`content${page === 'map' ? ' map-container' : ''}`}>
         {page !== 'map' && (
           <div className="content-header">
+            <button
+              type="button"
+              className="content-menu-btn"
+              onClick={() => setMobileMenuOpen((v) => !v)}
+              aria-label="Menu"
+            >
+              ☰
+            </button>
             <div className="content-header-icon"><Icon id={page} size={20} /></div>
             <div>
               <h2>{active?.label}</h2>

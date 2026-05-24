@@ -15,30 +15,17 @@ function AlertToast({ alert, onDismiss }) {
   const c = COLORS[alert.level] ?? COLORS.info
 
   return (
-    <div style={{
-      display: 'flex', alignItems: 'center', gap: '10px',
-      background: c.bg,
-      border: `1px solid ${c.border}`,
-      borderRadius: '8px',
-      padding: '10px 14px',
-      boxShadow: '0 4px 20px rgba(0,0,0,0.45)',
-      maxWidth: '340px',
-      animation: 'slideInAlert 0.22s ease',
-    }}>
-      <span style={{ fontSize: '1.1rem', flexShrink: 0 }}>{alert.icon}</span>
-      <span style={{
-        color: c.text, fontSize: '0.79rem', fontWeight: 500,
-        flex: 1, lineHeight: 1.45,
-      }}>
+    <div
+      className="live-alert-toast"
+      style={{ background: c.bg, border: `1px solid ${c.border}` }}
+    >
+      <span className="live-alert-icon">{alert.icon}</span>
+      <span className="live-alert-message" style={{ color: c.text }}>
         {alert.message}
       </span>
       <button
         onClick={() => onDismiss(alert.id)}
-        style={{
-          background: 'none', border: 'none', color: '#64748b',
-          cursor: 'pointer', fontSize: '1.1rem', padding: '0 2px',
-          flexShrink: 0, lineHeight: 1,
-        }}
+        className="live-alert-close"
         aria-label="Fermer"
       >×</button>
     </div>
@@ -52,13 +39,9 @@ export default function LiveAlerts({ alerts, onDismiss }) {
   if (!alerts.length) return null
 
   return (
-    <div style={{
-      position: 'fixed', bottom: '24px', right: '24px',
-      display: 'flex', flexDirection: 'column-reverse', gap: '8px',
-      zIndex: 9999, pointerEvents: 'none',
-    }}>
+    <div className="live-alerts">
       {alerts.slice(0, 5).map((a) => (
-        <div key={a.id} style={{ pointerEvents: 'auto' }}>
+        <div key={a.id} className="live-alert-item">
           <AlertToast alert={a} onDismiss={onDismiss} />
         </div>
       ))}

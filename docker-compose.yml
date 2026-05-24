@@ -115,25 +115,24 @@ services:
     volumes:
       - models_data:/app/models
 
-  gps-simulator:
+  gps-collector:
     build:
       context: .
       dockerfile: api/Dockerfile
-    container_name: smart-logistics-gps-simulator
+    container_name: smart-logistics-gps-collector
     restart: unless-stopped
     env_file:
       - .env
     environment:
-      GPS_WEBHOOK_URL: http://n8n:5678/webhook/gps-tracking
-      GPS_SIMULATOR_CYCLE_SECONDS: ${GPS_SIMULATOR_CYCLE_SECONDS:-300}
+      GPS_API_URL: http://api:8000
+      GPS_INGEST_TOKEN: ${GPS_INGEST_TOKEN}
+      GPS_COLLECTOR_CYCLE_SECONDS: ${GPS_COLLECTOR_CYCLE_SECONDS:-60}
+      GPS_COLLECTOR_BACKOFF_MAX: ${GPS_COLLECTOR_BACKOFF_MAX:-300}
     depends_on:
-      n8n:
+      api:
         condition: service_started
     command: >
-      sh -c "while true; do
-      python /app/scripts/gps_simulator.py --vehicle-ids 1 2 3 --count 1 --interval 1;
-      sleep ${GPS_SIMULATOR_CYCLE_SECONDS:-300};
-      done"
+      sh -c "python /app/scripts/gps_collector.py"
 
   transit-simulator:
     build:
