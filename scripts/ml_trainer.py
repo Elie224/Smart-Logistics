@@ -126,6 +126,26 @@ def ensure_real_observations_table(conn) -> None:
             ON ml_real_observations (created_at DESC);
             """
         )
+        cur.execute(
+            """
+            CREATE TABLE IF NOT EXISTS ml_delivery_feature_snapshots (
+                delivery_id INTEGER PRIMARY KEY,
+                departure_time TIMESTAMPTZ,
+                departure_hour INTEGER NOT NULL,
+                departure_dow INTEGER NOT NULL,
+                departure_month INTEGER NOT NULL,
+                temperature DOUBLE PRECISION NOT NULL,
+                wind_speed DOUBLE PRECISION NOT NULL,
+                traffic_delay_s DOUBLE PRECISION NOT NULL,
+                route_duration_s DOUBLE PRECISION NOT NULL,
+                transit_disruptions INTEGER NOT NULL,
+                transit_blocking INTEGER NOT NULL,
+                transit_status VARCHAR(50) NOT NULL,
+                context_city VARCHAR(100),
+                captured_at TIMESTAMPTZ DEFAULT NOW() NOT NULL
+            );
+            """
+        )
     conn.commit()
 
 
@@ -135,6 +155,51 @@ def backfill_real_observations(conn) -> int:
     Features prises au plus près du départ (fallbacks robustes si historique manquant).
     """
     with conn.cursor() as cur:
+        cur.execute(
+            """
+            INSERT INTO ml_real_observations (
+                delivery_id,
+                departure_time,
+                departure_hour,
+                departure_dow,
+                departure_month,
+                temperature,
+                wind_speed,
+                traffic_delay_s,
+                route_duration_s,
+                transit_disruptions,
+                transit_blocking,
+                transit_status,
+                is_delayed
+            )
+            SELECT
+                d.id,
+                COALESCE(s.departure_time, d.departure_time) AS departure_time,
+                s.departure_hour,
+                s.departure_dow,
+                s.departure_month,
+                s.temperature,
+                s.wind_speed,
+                s.traffic_delay_s,
+                s.route_duration_s,
+                s.transit_disruptions,
+                s.transit_blocking,
+                s.transit_status,
+                CASE
+                    WHEN d.delayed THEN 1
+                    WHEN d.actual_arrival_time > d.expected_arrival_time + INTERVAL '10 minutes' THEN 1
+                    ELSE 0
+                END AS is_delayed
+            FROM deliveries d
+            JOIN ml_delivery_feature_snapshots s ON s.delivery_id = d.id
+            WHERE d.status = 'DELIVERED'
+              AND d.expected_arrival_time IS NOT NULL
+              AND d.actual_arrival_time IS NOT NULL
+            ON CONFLICT (delivery_id) DO NOTHING;
+            """
+        )
+        inserted_from_snapshots = cur.rowcount if cur.rowcount is not None else 0
+
         cur.execute(
             """
             INSERT INTO ml_real_observations (
@@ -222,9 +287,9 @@ def backfill_real_observations(conn) -> int:
             ON CONFLICT (delivery_id) DO NOTHING;
             """
         )
-        inserted = cur.rowcount if cur.rowcount is not None else 0
+        inserted_from_fallback = cur.rowcount if cur.rowcount is not None else 0
     conn.commit()
-    return inserted
+    return inserted_from_snapshots + inserted_from_fallback
 
 
 def load_real_data() -> list[tuple]:

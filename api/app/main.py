@@ -31,6 +31,118 @@ _STATIC_DIR.mkdir(exist_ok=True)
 app.mount("/static", StaticFiles(directory=str(_STATIC_DIR)), name="static")
 
 
+def _ensure_ml_feature_snapshots_table() -> None:
+    with engine.begin() as connection:
+        connection.execute(
+            text(
+                """
+                CREATE TABLE IF NOT EXISTS ml_delivery_feature_snapshots (
+                    delivery_id INTEGER PRIMARY KEY,
+                    departure_time TIMESTAMPTZ,
+                    departure_hour INTEGER NOT NULL,
+                    departure_dow INTEGER NOT NULL,
+                    departure_month INTEGER NOT NULL,
+                    temperature DOUBLE PRECISION NOT NULL,
+                    wind_speed DOUBLE PRECISION NOT NULL,
+                    traffic_delay_s DOUBLE PRECISION NOT NULL,
+                    route_duration_s DOUBLE PRECISION NOT NULL,
+                    transit_disruptions INTEGER NOT NULL,
+                    transit_blocking INTEGER NOT NULL,
+                    transit_status VARCHAR(50) NOT NULL,
+                    context_city VARCHAR(100),
+                    captured_at TIMESTAMPTZ DEFAULT NOW() NOT NULL
+                )
+                """
+            )
+        )
+
+
+def _upsert_ml_feature_snapshot(
+    delivery_id: int,
+    departure_time,
+    departure_hour: int,
+    departure_dow: int,
+    departure_month: int,
+    temperature: float,
+    wind_speed: float,
+    traffic_delay_s: float,
+    route_duration_s: float,
+    transit_disruptions: int,
+    transit_blocking: int,
+    transit_status: str,
+    context_city: str | None,
+) -> None:
+    with engine.begin() as connection:
+        connection.execute(
+            text(
+                """
+                INSERT INTO ml_delivery_feature_snapshots (
+                    delivery_id,
+                    departure_time,
+                    departure_hour,
+                    departure_dow,
+                    departure_month,
+                    temperature,
+                    wind_speed,
+                    traffic_delay_s,
+                    route_duration_s,
+                    transit_disruptions,
+                    transit_blocking,
+                    transit_status,
+                    context_city,
+                    captured_at
+                )
+                VALUES (
+                    :delivery_id,
+                    :departure_time,
+                    :departure_hour,
+                    :departure_dow,
+                    :departure_month,
+                    :temperature,
+                    :wind_speed,
+                    :traffic_delay_s,
+                    :route_duration_s,
+                    :transit_disruptions,
+                    :transit_blocking,
+                    :transit_status,
+                    :context_city,
+                    NOW()
+                )
+                ON CONFLICT (delivery_id)
+                DO UPDATE SET
+                    departure_time = EXCLUDED.departure_time,
+                    departure_hour = EXCLUDED.departure_hour,
+                    departure_dow = EXCLUDED.departure_dow,
+                    departure_month = EXCLUDED.departure_month,
+                    temperature = EXCLUDED.temperature,
+                    wind_speed = EXCLUDED.wind_speed,
+                    traffic_delay_s = EXCLUDED.traffic_delay_s,
+                    route_duration_s = EXCLUDED.route_duration_s,
+                    transit_disruptions = EXCLUDED.transit_disruptions,
+                    transit_blocking = EXCLUDED.transit_blocking,
+                    transit_status = EXCLUDED.transit_status,
+                    context_city = EXCLUDED.context_city,
+                    captured_at = NOW()
+                """
+            ),
+            {
+                "delivery_id": delivery_id,
+                "departure_time": departure_time,
+                "departure_hour": int(departure_hour),
+                "departure_dow": int(departure_dow),
+                "departure_month": int(departure_month),
+                "temperature": float(temperature),
+                "wind_speed": float(wind_speed),
+                "traffic_delay_s": float(traffic_delay_s),
+                "route_duration_s": float(route_duration_s),
+                "transit_disruptions": int(transit_disruptions),
+                "transit_blocking": int(transit_blocking),
+                "transit_status": str(transit_status),
+                "context_city": context_city,
+            },
+        )
+
+
 @app.get("/map", include_in_schema=False)
 def live_map():
     """Redirect to the live map HTML page."""
@@ -368,6 +480,7 @@ def get_ml_delay_risk() -> list[dict]:
     traffic_map  = {row["city"].lower(): row for row in traffic}
 
     now = datetime.now(timezone.utc)
+    _ensure_ml_feature_snapshots_table()
 
     results = []
     for d in deliveries:
@@ -387,9 +500,11 @@ def get_ml_delay_risk() -> list[dict]:
         if hasattr(dep_time, "hour"):
             dep_hour = dep_time.hour
             dep_dow  = dep_time.weekday()   # 0=lundi
+            dep_month = dep_time.month
         else:
             dep_hour = now.hour
             dep_dow  = now.weekday()
+            dep_month = now.month
 
         # Durée de trajet : depuis expected_arrival - departure si dispo, sinon DB
         route_duration_s = 1800.0
@@ -411,6 +526,23 @@ def get_ml_delay_risk() -> list[dict]:
             transit_blocking    = int(t.get("blocking_disruptions") or 0),
             transit_status      = str(t.get("network_status") or "NORMAL"),
             route_duration_s    = route_duration_s,
+        )
+
+        # Capture des features réelles pour futur training (quand la livraison sera DELIVERED).
+        _upsert_ml_feature_snapshot(
+            delivery_id=d["id"],
+            departure_time=d.get("departure_time"),
+            departure_hour=dep_hour,
+            departure_dow=dep_dow,
+            departure_month=dep_month,
+            temperature=float(w.get("temperature") or 12.0),
+            wind_speed=float(w.get("wind_speed") or 3.0),
+            traffic_delay_s=float(tr.get("avg_delay_seconds") or 0),
+            route_duration_s=route_duration_s,
+            transit_disruptions=int(t.get("total_disruptions") or 0),
+            transit_blocking=int(t.get("blocking_disruptions") or 0),
+            transit_status=str(t.get("network_status") or "NORMAL"),
+            context_city=context_city.capitalize() if context_city else None,
         )
 
         if prediction is None:
