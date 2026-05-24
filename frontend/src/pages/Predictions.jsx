@@ -38,6 +38,9 @@ function fmtDate(d) {
   if (!d) return '—'
   return new Date(d).toLocaleString('fr-FR', { dateStyle: 'short', timeStyle: 'short' })
 }
+function fmtFixed(v, digits = 3) {
+  return Number.isFinite(v) ? Number(v).toFixed(digits) : '—'
+}
 
 // ── Model info panel ──────────────────────────────────────────────────────
 function ModelInfo({ meta }) {
@@ -49,27 +52,49 @@ function ModelInfo({ meta }) {
 
   // Support les deux formats : feature_importances (GBT) ou coefficients (LogReg)
   const importanceMap = meta.feature_importances ?? meta.coefficients ?? {}
+  const hasImportance = Object.keys(importanceMap).length > 0
   const isGBT  = !!meta.feature_importances
   const totalGBT = isGBT ? Math.max(Object.values(importanceMap).reduce((s, v) => s + Math.abs(v), 0), 0.001) : 1
   const maxVal = isGBT
     ? Math.max(...Object.values(importanceMap).map(v => Math.abs(v) / totalGBT), 0.001)
     : Math.max(...Object.values(importanceMap).map(Math.abs), 0.001)
 
+  const nReal = meta.n_real ?? 0
+  const nSynthetic = meta.n_synthetic ?? 0
+  const nTotal = meta.n_total ?? (nReal + nSynthetic)
+  const delayedPct = Number.isFinite(meta.delayed_pct) ? `${meta.delayed_pct.toFixed(1)}%` : '—'
+  const aucTrain = fmtFixed(meta.auc_train, 3)
+  const aucCv = meta.cv_auc_mean != null
+    ? `${fmtFixed(meta.cv_auc_mean, 3)} ± ${fmtFixed(meta.cv_auc_std ?? 0, 3)}`
+    : aucTrain
+
   return (
     <div className="model-info-grid" style={{ marginBottom: 24 }}>
       <div className="chart-card">
         <div className="chart-title">ℹ️ Informations modèle</div>
+        {meta.status === 'insufficient_real_data' && (
+          <div style={{
+            marginBottom: 12,
+            padding: '10px 12px',
+            borderRadius: 10,
+            border: '1px solid rgba(234,88,12,0.35)',
+            background: 'rgba(251,146,60,0.08)',
+            color: '#9a3412',
+            fontSize: '0.8rem',
+            lineHeight: 1.4,
+          }}>
+            ⚠️ {meta.message ?? 'Données réelles insuffisantes pour entraîner le modèle.'}
+          </div>
+        )}
         <table style={{ width: '100%' }}>
           <tbody>
             {[
-              ['Algorithme',    meta.model_type],
+              ['Algorithme',    meta.model_type ?? '—'],
               ['Entraîné le',   meta.trained_at ? new Date(meta.trained_at).toLocaleString('fr-FR') : '—'],
-              ['Échantillons',  `${(meta.n_total ?? 0).toLocaleString('fr-FR')} (${meta.n_real} réels + ${meta.n_synthetic} synthétiques)`],
-              ['AUC CV (5-fold)', meta.cv_auc_mean != null
-                ? `${meta.cv_auc_mean.toFixed(3)} ± ${(meta.cv_auc_std ?? 0).toFixed(3)}`
-                : meta.auc_train?.toFixed(3)],
-              ['AUC train',     meta.auc_train?.toFixed(3)],
-              ['% retards',     `${meta.delayed_pct?.toFixed(1)}%`],
+              ['Échantillons',  `${nTotal.toLocaleString('fr-FR')} (${nReal} réels + ${nSynthetic} synthétiques)`],
+              ['AUC CV (5-fold)', aucCv],
+              ['AUC train',     aucTrain],
+              ['% retards',     delayedPct],
             ].map(([k, v]) => (
               <tr key={k} style={{ borderBottom: '1px solid rgba(51,65,85,0.4)' }}>
                 <td style={{ padding: '8px 0', fontSize: '0.78rem', color: 'var(--muted)', width: '45%' }}>{k}</td>
@@ -83,6 +108,12 @@ function ModelInfo({ meta }) {
       <div className="chart-card">
         <div className="chart-title">📊 Importance des features</div>
         <div className="coeff-list">
+          {!hasImportance && (
+            <div style={{ fontSize: '0.8rem', color: 'var(--muted)', lineHeight: 1.5 }}>
+              Pas encore de poids de features exploitables.<br />
+              Ils s'afficheront automatiquement dès qu'un modèle entraîné sur assez de données réelles sera disponible.
+            </div>
+          )}
           {Object.entries(importanceMap)
             .sort((a, b) => Math.abs(b[1]) - Math.abs(a[1]))
             .map(([name, val]) => {
