@@ -124,6 +124,20 @@ def _clip01(x: float) -> float:
     return max(0.0, min(1.0, x))
 
 
+def _safe_float(value, default: float = 0.0) -> float:
+    try:
+        return float(value)
+    except (TypeError, ValueError):
+        return default
+
+
+def _safe_int(value, default: int = 0) -> int:
+    try:
+        return int(value)
+    except (TypeError, ValueError):
+        return default
+
+
 def _heuristic_probability(
     departure_hour: int,
     departure_dow: int,
@@ -223,8 +237,8 @@ def predict_delay_risk(
     ]], dtype=float)
 
     meta = get_model_meta()
-    n_real = int(meta.get("n_real", 0)) if isinstance(meta, dict) else 0
-    cv_auc = float(meta.get("cv_auc_mean", 0.0)) if isinstance(meta, dict) else 0.0
+    n_real = _safe_int(meta.get("n_real", 0), 0) if isinstance(meta, dict) else 0
+    cv_auc = _safe_float(meta.get("cv_auc_mean", 0.0), 0.0) if isinstance(meta, dict) else 0.0
 
     heuristic_prob = _heuristic_probability(
         departure_hour=departure_hour,

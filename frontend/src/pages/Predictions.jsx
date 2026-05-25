@@ -64,6 +64,9 @@ function ModelInfo({ meta }) {
   const nTotal = meta.n_total ?? (nReal + nSynthetic)
   const delayedPct = Number.isFinite(meta.delayed_pct) ? `${meta.delayed_pct.toFixed(1)}%` : '—'
   const aucTrain = fmtFixed(meta.auc_train, 3)
+  const attemptedOnly = meta.status === 'insufficient_real_data' || meta.status === 'not_trained'
+  const modelLabel = meta.model_type ?? (attemptedOnly ? 'Non entraîné (mode réel strict)' : '—')
+  const trainedAtLabel = attemptedOnly ? 'Dernière tentative auto' : 'Entraîné le'
   const aucCv = meta.cv_auc_mean != null
     ? `${fmtFixed(meta.cv_auc_mean, 3)} ± ${fmtFixed(meta.cv_auc_std ?? 0, 3)}`
     : aucTrain
@@ -89,8 +92,8 @@ function ModelInfo({ meta }) {
         <table style={{ width: '100%' }}>
           <tbody>
             {[
-              ['Algorithme',    meta.model_type ?? '—'],
-              ['Entraîné le',   meta.trained_at ? new Date(meta.trained_at).toLocaleString('fr-FR') : '—'],
+              ['Algorithme',    modelLabel],
+              [trainedAtLabel,  meta.trained_at ? new Date(meta.trained_at).toLocaleString('fr-FR') : '—'],
               ['Échantillons',  `${nTotal.toLocaleString('fr-FR')} (${nReal} réels + ${nSynthetic} synthétiques)`],
               ['AUC CV (5-fold)', aucCv],
               ['AUC train',     aucTrain],
