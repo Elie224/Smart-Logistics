@@ -41,6 +41,9 @@ function fmtDate(d) {
 function fmtFixed(v, digits = 3) {
   return Number.isFinite(v) ? Number(v).toFixed(digits) : '—'
 }
+function clamp(x, min, max) {
+  return Math.max(min, Math.min(max, x))
+}
 
 // ── Model info panel ──────────────────────────────────────────────────────
 function ModelInfo({ meta }) {
@@ -62,6 +65,8 @@ function ModelInfo({ meta }) {
   const nReal = meta.n_real ?? 0
   const nSynthetic = meta.n_synthetic ?? 0
   const nTotal = meta.n_total ?? (nReal + nSynthetic)
+  const minReal = Number.isFinite(meta.min_real_for_train) ? meta.min_real_for_train : 200
+  const trainProgress = minReal > 0 ? clamp((nReal / minReal) * 100, 0, 100) : 0
   const delayedPct = Number.isFinite(meta.delayed_pct) ? `${meta.delayed_pct.toFixed(1)}%` : '—'
   const hasMlMetrics = Number.isFinite(meta.auc_train) || Number.isFinite(meta.cv_auc_mean)
   const aucTrain = hasMlMetrics ? fmtFixed(meta.auc_train, 3) : 'Non applicable (baseline)'
@@ -88,6 +93,23 @@ function ModelInfo({ meta }) {
             lineHeight: 1.4,
           }}>
             ⚠️ {meta.message ?? 'Données réelles insuffisantes pour entraîner le modèle.'}
+          </div>
+        )}
+        {attemptedOnly && (
+          <div style={{ marginBottom: 14 }}>
+            <div style={{
+              display: 'flex',
+              justifyContent: 'space-between',
+              fontSize: '0.76rem',
+              color: 'var(--muted)',
+              marginBottom: 6,
+            }}>
+              <span>Progression apprentissage réel</span>
+              <span>{nReal}/{minReal}</span>
+            </div>
+            <div style={{ height: 8, borderRadius: 999, background: 'rgba(148,163,184,0.25)', overflow: 'hidden' }}>
+              <div style={{ height: '100%', width: `${trainProgress.toFixed(1)}%`, background: 'linear-gradient(90deg, #0ea5e9, #22c55e)' }} />
+            </div>
           </div>
         )}
         <table style={{ width: '100%' }}>

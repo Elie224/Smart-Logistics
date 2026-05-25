@@ -15,6 +15,7 @@ import numpy as np
 MODELS_DIR = os.getenv("MODELS_DIR", "/app/models")
 MODEL_PATH = os.path.join(MODELS_DIR, "delay_model.pkl")
 META_PATH  = os.path.join(MODELS_DIR, "delay_model_meta.json")
+MIN_REAL_FOR_TRAIN = int(os.getenv("MIN_REAL_FOR_TRAIN", "200"))
 
 TRANSIT_STATUS_MAP = {"NORMAL": 0, "REDUCED": 1, "DISRUPTED": 2}
 
@@ -79,6 +80,7 @@ def get_model_meta() -> dict:
         "n_real": 0,
         "n_synthetic": 0,
         "n_total": 0,
+        "min_real_for_train": MIN_REAL_FOR_TRAIN,
         "real_weight": None,
         "auc_train": None,
         "pr_auc_train": None,
@@ -104,6 +106,7 @@ def get_model_meta() -> dict:
                 meta["features"] = FEATURES
             if not meta.get("feature_importances"):
                 meta["feature_importances"] = HEURISTIC_IMPORTANCES.copy()
+            meta["min_real_for_train"] = _safe_int(meta.get("min_real_for_train"), MIN_REAL_FOR_TRAIN)
             if not meta.get("message"):
                 meta["message"] = (
                     "Modèle ML indisponible: fallback heuristique actif "
