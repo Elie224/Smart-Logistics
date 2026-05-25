@@ -48,6 +48,7 @@ META_PATH  = os.path.join(MODELS_DIR, "delay_model_meta.json")
 ALLOW_SYNTHETIC = os.getenv("ALLOW_SYNTHETIC", "false").lower() in ("1", "true", "yes")
 SYNTHETIC_SAMPLES = int(os.getenv("SYNTHETIC_SAMPLES", "5000")) if ALLOW_SYNTHETIC else 0
 MIN_REAL_FOR_TRAIN = int(os.getenv("MIN_REAL_FOR_TRAIN", "200"))
+BOOTSTRAP_MIN_REAL = int(os.getenv("BOOTSTRAP_MIN_REAL", "2"))
 
 TRANSIT_STATUS_MAP = {"NORMAL": 0, "REDUCED": 1, "DISRUPTED": 2}
 
@@ -186,8 +187,9 @@ def backfill_real_observations(conn) -> int:
                 s.transit_blocking,
                 s.transit_status,
                 CASE
-                    WHEN d.delayed THEN 1
-                    WHEN d.actual_arrival_time > d.expected_arrival_time + INTERVAL '10 minutes' THEN 1
+                    WHEN d.delayed IS TRUE THEN 1
+                    WHEN d.delayed IS FALSE THEN 0
+                    WHEN d.actual_arrival_time > d.expected_arrival_time + INTERVAL '90 minutes' THEN 1
                     ELSE 0
                 END AS is_delayed
             FROM deliveries d
@@ -195,7 +197,20 @@ def backfill_real_observations(conn) -> int:
             WHERE d.status = 'DELIVERED'
               AND d.expected_arrival_time IS NOT NULL
               AND d.actual_arrival_time IS NOT NULL
-            ON CONFLICT (delivery_id) DO NOTHING;
+            ON CONFLICT (delivery_id) DO UPDATE
+            SET
+                departure_time = EXCLUDED.departure_time,
+                departure_hour = EXCLUDED.departure_hour,
+                departure_dow = EXCLUDED.departure_dow,
+                departure_month = EXCLUDED.departure_month,
+                temperature = EXCLUDED.temperature,
+                wind_speed = EXCLUDED.wind_speed,
+                traffic_delay_s = EXCLUDED.traffic_delay_s,
+                route_duration_s = EXCLUDED.route_duration_s,
+                transit_disruptions = EXCLUDED.transit_disruptions,
+                transit_blocking = EXCLUDED.transit_blocking,
+                transit_status = EXCLUDED.transit_status,
+                is_delayed = EXCLUDED.is_delayed;
             """
         )
         inserted_from_snapshots = cur.rowcount if cur.rowcount is not None else 0
@@ -238,8 +253,9 @@ def backfill_real_observations(conn) -> int:
                 COALESCE(tc.blocking_disruptions, 0) AS transit_blocking,
                 COALESCE(tc.network_status, 'NORMAL') AS transit_status,
                 CASE
-                    WHEN d.delayed THEN 1
-                    WHEN d.actual_arrival_time > d.expected_arrival_time + INTERVAL '10 minutes' THEN 1
+                    WHEN d.delayed IS TRUE THEN 1
+                    WHEN d.delayed IS FALSE THEN 0
+                    WHEN d.actual_arrival_time > d.expected_arrival_time + INTERVAL '90 minutes' THEN 1
                     ELSE 0
                 END AS is_delayed
             FROM deliveries d
@@ -284,7 +300,20 @@ def backfill_real_observations(conn) -> int:
               AND d.departure_time IS NOT NULL
               AND d.expected_arrival_time IS NOT NULL
               AND d.actual_arrival_time IS NOT NULL
-            ON CONFLICT (delivery_id) DO NOTHING;
+                        ON CONFLICT (delivery_id) DO UPDATE
+                        SET
+                                departure_time = EXCLUDED.departure_time,
+                                departure_hour = EXCLUDED.departure_hour,
+                                departure_dow = EXCLUDED.departure_dow,
+                                departure_month = EXCLUDED.departure_month,
+                                temperature = EXCLUDED.temperature,
+                                wind_speed = EXCLUDED.wind_speed,
+                                traffic_delay_s = EXCLUDED.traffic_delay_s,
+                                route_duration_s = EXCLUDED.route_duration_s,
+                                transit_disruptions = EXCLUDED.transit_disruptions,
+                                transit_blocking = EXCLUDED.transit_blocking,
+                                transit_status = EXCLUDED.transit_status,
+                                is_delayed = EXCLUDED.is_delayed;
             """
         )
         inserted_from_fallback = cur.rowcount if cur.rowcount is not None else 0
@@ -490,9 +519,9 @@ def build_sample_weights(n_real: int, y: np.ndarray) -> np.ndarray:
     return weights
 
 
-def evaluate_cv(params: dict, X: np.ndarray, y: np.ndarray, weights: np.ndarray) -> dict:
+def evaluate_cv(params: dict, X: np.ndarray, y: np.ndarray, weights: np.ndarray, n_splits: int = 5) -> dict:
     """Évalue un set d'hyperparamètres via CV stratifiée."""
-    cv = StratifiedKFold(n_splits=5, shuffle=True, random_state=42)
+    cv = StratifiedKFold(n_splits=n_splits, shuffle=True, random_state=42)
     auc_scores, ap_scores, brier_scores = [], [], []
 
     for train_idx, val_idx in cv.split(X, y):
@@ -544,10 +573,13 @@ def train_model() -> tuple:
     else:
         print("[ML] Mode réel strict: données synthétiques désactivées.")
 
-    if len(real_X) < MIN_REAL_FOR_TRAIN and not ALLOW_SYNTHETIC:
+    if len(real_X) < MIN_REAL_FOR_TRAIN and not ALLOW_SYNTHETIC and len(real_X) < BOOTSTRAP_MIN_REAL:
         meta = {
             "status": "insufficient_real_data",
-            "message": f"Données réelles insuffisantes ({len(real_X)}). Minimum requis: {MIN_REAL_FOR_TRAIN}.",
+            "message": (
+                f"Données réelles insuffisantes ({len(real_X)}). "
+                f"Minimum cible: {MIN_REAL_FOR_TRAIN}. Bootstrap: {BOOTSTRAP_MIN_REAL}."
+            ),
             "n_real": len(real_X),
             "n_synthetic": 0,
             "n_total": len(real_X),
@@ -562,6 +594,24 @@ def train_model() -> tuple:
     X = np.array(real_X + syn_X, dtype=float)
     y = np.array(real_y + syn_y, dtype=int)
     weights = build_sample_weights(len(real_X), y)
+
+    class_counts = np.bincount(y, minlength=2)
+    class_min = int(class_counts.min()) if len(class_counts) >= 2 else 0
+    if class_min < 1:
+        meta = {
+            "status": "insufficient_real_data",
+            "message": "Une seule classe observée; entraînement ML impossible pour l'instant.",
+            "n_real": len(real_X),
+            "n_synthetic": len(syn_X),
+            "n_total": len(X),
+            "trained_at": datetime.now(timezone.utc).isoformat(),
+        }
+        with open(META_PATH, "w") as f:
+            json.dump(meta, f, indent=2)
+        print(f"[ML] {meta['message']}")
+        return None, meta
+
+    low_data_bootstrap = len(real_X) < MIN_REAL_FOR_TRAIN and not ALLOW_SYNTHETIC
 
     print(f"[ML] Dataset total : {len(X)} exemples "
           f"({int(y.sum())} retards / {int((y == 0).sum())} à l'heure)")
@@ -603,26 +653,37 @@ def train_model() -> tuple:
     best_params = None
     best_metrics = None
     best_score = -1.0
+    n_splits = min(5, class_min, len(X))
 
-    for idx, params in enumerate(candidates, start=1):
-        metrics = evaluate_cv(params, X, y, weights)
-        # Score composite orienté performance + calibration
-        score = metrics["auc_mean"] + 0.25 * metrics["ap_mean"] - 0.15 * metrics["brier_mean"]
+    if n_splits >= 2:
+        for idx, params in enumerate(candidates, start=1):
+            metrics = evaluate_cv(params, X, y, weights, n_splits=n_splits)
+            # Score composite orienté performance + calibration
+            score = metrics["auc_mean"] + 0.25 * metrics["ap_mean"] - 0.15 * metrics["brier_mean"]
+            print(
+                f"[ML] Candidate #{idx} -> "
+                f"AUC={metrics['auc_mean']:.3f}±{metrics['auc_std']:.3f}, "
+                f"PR-AUC={metrics['ap_mean']:.3f}, Brier={metrics['brier_mean']:.3f}"
+            )
+            if score > best_score:
+                best_score = score
+                best_params = params
+                best_metrics = metrics
+
         print(
-            f"[ML] Candidate #{idx} -> "
-            f"AUC={metrics['auc_mean']:.3f}±{metrics['auc_std']:.3f}, "
-            f"PR-AUC={metrics['ap_mean']:.3f}, Brier={metrics['brier_mean']:.3f}"
+            f"[ML] Best params sélectionnés -> "
+            f"AUC CV: {best_metrics['auc_mean']:.3f} ± {best_metrics['auc_std']:.3f}, "
+            f"PR-AUC: {best_metrics['ap_mean']:.3f}, Brier: {best_metrics['brier_mean']:.3f}"
         )
-        if score > best_score:
-            best_score = score
-            best_params = params
-            best_metrics = metrics
-
-    print(
-        f"[ML] Best params sélectionnés -> "
-        f"AUC CV: {best_metrics['auc_mean']:.3f} ± {best_metrics['auc_std']:.3f}, "
-        f"PR-AUC: {best_metrics['ap_mean']:.3f}, Brier: {best_metrics['brier_mean']:.3f}"
-    )
+    else:
+        best_params = candidates[0]
+        best_metrics = {
+            "auc_mean": 0.0,
+            "auc_std": 0.0,
+            "ap_mean": 0.0,
+            "brier_mean": 0.0,
+        }
+        print("[ML] CV indisponible (trop peu de données). Mode bootstrap direct activé.")
 
     # --- Entraînement final + calibration probabiliste ---
     base_clf = lgb.LGBMClassifier(
@@ -634,19 +695,28 @@ def train_model() -> tuple:
     )
     base_clf.fit(X, y, sample_weight=weights)
 
-    clf = CalibratedClassifierCV(estimator=base_clf, method="sigmoid", cv=5)
-    clf.fit(X, y, sample_weight=weights)
+    if n_splits >= 3:
+        clf = CalibratedClassifierCV(estimator=base_clf, method="sigmoid", cv=n_splits)
+        clf.fit(X, y, sample_weight=weights)
+    else:
+        clf = base_clf
 
     y_pred = clf.predict(X)
     y_prob = clf.predict_proba(X)[:, 1]
-    auc_train = roc_auc_score(y, y_prob)
-    pr_auc_train = average_precision_score(y, y_prob)
+    try:
+        auc_train = roc_auc_score(y, y_prob)
+    except Exception:
+        auc_train = 0.0
+    try:
+        pr_auc_train = average_precision_score(y, y_prob)
+    except Exception:
+        pr_auc_train = 0.0
     brier_train = brier_score_loss(y, y_prob)
 
     print(f"[ML] AUC (train complet) : {auc_train:.3f}")
     print(f"[ML] PR-AUC (train complet) : {pr_auc_train:.3f}")
     print(f"[ML] Brier (train complet) : {brier_train:.3f}")
-    print(classification_report(y, y_pred, target_names=["ON_TIME", "DELAYED"]))
+    print(classification_report(y, y_pred, labels=[0, 1], target_names=["ON_TIME", "DELAYED"], zero_division=0))
 
     delayed_pct = round(float(y.sum()) / len(y) * 100, 1)
     print(f"[ML] Taux de retard dataset : {delayed_pct} %")
@@ -662,6 +732,7 @@ def train_model() -> tuple:
     ))
 
     meta = {
+        "status":               "bootstrap_low_data" if low_data_bootstrap else "trained",
         "model_type":           "LightGBM",
         "features":             FEATURES,
         "n_real":               len(real_X),
@@ -675,8 +746,9 @@ def train_model() -> tuple:
         "cv_auc_std":           round(best_metrics["auc_std"], 4),
         "cv_pr_auc_mean":       round(best_metrics["ap_mean"], 4),
         "cv_brier_mean":        round(best_metrics["brier_mean"], 4),
-        "calibration":          "sigmoid",
+        "calibration":          "sigmoid" if n_splits >= 3 else "none",
         "selected_params":      best_params,
+        "n_cv_splits":          n_splits,
         "delayed_pct":          delayed_pct,
         "feature_importances":  importances,
         "trained_at":           datetime.now(timezone.utc).isoformat(),
