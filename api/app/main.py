@@ -1,5 +1,6 @@
 import asyncio
 import json
+import math
 import os
 import subprocess
 from datetime import datetime, timezone
@@ -30,6 +31,97 @@ app = FastAPI(
 _STATIC_DIR = Path(__file__).parent / "static"
 _STATIC_DIR.mkdir(exist_ok=True)
 app.mount("/static", StaticFiles(directory=str(_STATIC_DIR)), name="static")
+
+
+CITY_CENTERS = {
+    "paris": (48.856613, 2.352222),
+    "lille": (50.629250, 3.057256),
+}
+
+
+def _haversine_km(lat1: float, lon1: float, lat2: float, lon2: float) -> float:
+    r = 6371.0
+    p1 = math.radians(lat1)
+    p2 = math.radians(lat2)
+    dphi = math.radians(lat2 - lat1)
+    dlambda = math.radians(lon2 - lon1)
+    a = math.sin(dphi / 2) ** 2 + math.cos(p1) * math.cos(p2) * math.sin(dlambda / 2) ** 2
+    return 2 * r * math.asin(math.sqrt(a))
+
+
+def _auto_complete_deliveries_from_gps() -> int:
+    """
+    Clôture automatiquement une livraison IN_TRANSIT si le véhicule est arrivé
+    dans la zone de destination (Paris/Lille). Permet de faire évoluer les données réelles
+    sans simulation en attendant un flux OMS complet.
+    """
+    rows = fetch_all(
+        """
+        SELECT
+            d.id,
+            d.destination,
+            d.expected_arrival_time,
+            g.latitude,
+            g.longitude,
+            g.created_at AS gps_time
+        FROM deliveries d
+        JOIN (
+            SELECT DISTINCT ON (vehicle_id)
+                vehicle_id,
+                latitude,
+                longitude,
+                created_at
+            FROM gps_tracking
+            ORDER BY vehicle_id, created_at DESC
+        ) g ON g.vehicle_id = d.vehicle_id
+        WHERE d.status = 'IN_TRANSIT';
+        """
+    )
+
+    now = datetime.now(timezone.utc)
+    updated = 0
+    for row in rows:
+        dest = (row.get("destination") or "").strip().lower()
+        center = CITY_CENTERS.get(dest)
+        if not center:
+            continue
+
+        lat = row.get("latitude")
+        lon = row.get("longitude")
+        if lat is None or lon is None:
+            continue
+
+        # Sécurité: on n'auto-clôture pas trop tôt par rapport à ETA prévue.
+        eta = row.get("expected_arrival_time")
+        if eta and hasattr(eta, "tzinfo"):
+            if eta > now:
+                continue
+
+        dist_km = _haversine_km(float(lat), float(lon), center[0], center[1])
+        if dist_km > 12.0:
+            continue
+
+        with engine.begin() as connection:
+            result = connection.execute(
+                text(
+                    """
+                    UPDATE deliveries
+                    SET
+                        status = 'DELIVERED',
+                        actual_arrival_time = COALESCE(actual_arrival_time, :actual_arrival_time)
+                    WHERE id = :delivery_id
+                    AND status = 'IN_TRANSIT'
+                    """
+                ),
+                {
+                    "delivery_id": int(row["id"]),
+                    "actual_arrival_time": row.get("gps_time") or now,
+                },
+            )
+            if result.rowcount and result.rowcount > 0:
+                updated += 1
+
+    return updated
 
 
 def _ensure_ml_feature_snapshots_table() -> None:
@@ -458,6 +550,8 @@ def get_ml_delay_risk() -> list[dict]:
     Prédit le risque de retard pour chaque livraison active (IN_TRANSIT ou PLANNED)
     en utilisant le contexte météo + trafic + transit en temps réel.
     """
+    _auto_complete_deliveries_from_gps()
+
     # Contexte temps réel
     weather  = fetch_all("SELECT city, temperature, wind_speed FROM latest_weather_by_city")
     traffic  = fetch_all(
