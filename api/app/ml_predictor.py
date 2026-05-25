@@ -18,6 +18,19 @@ META_PATH  = os.path.join(MODELS_DIR, "delay_model_meta.json")
 
 TRANSIT_STATUS_MAP = {"NORMAL": 0, "REDUCED": 1, "DISRUPTED": 2}
 
+# Importance relative des facteurs utilisés par le fallback heuristique.
+HEURISTIC_IMPORTANCES = {
+    "traffic_delay_s": 0.26,
+    "transit_blocking": 0.12,
+    "transit_status_enc": 0.10,
+    "wind_speed": 0.08,
+    "route_duration_s": 0.07,
+    "temp_below_5": 0.06,
+    "is_night": 0.05,
+    "transit_disruptions": 0.05,
+    "is_rush_hour": 0.16,
+}
+
 FEATURES = [
     "departure_hour", "departure_dow", "departure_month",
     "hour_sin", "hour_cos",
@@ -82,6 +95,22 @@ def get_model_meta() -> dict:
         "trained_at": None,
     }
 
+    def with_heuristic_fallback(meta: dict) -> dict:
+        status = str(meta.get("status") or "")
+        if status in {"not_trained", "insufficient_real_data"}:
+            if not meta.get("model_type"):
+                meta["model_type"] = "Baseline heuristique temps réel"
+            if not meta.get("features"):
+                meta["features"] = FEATURES
+            if not meta.get("feature_importances"):
+                meta["feature_importances"] = HEURISTIC_IMPORTANCES.copy()
+            if not meta.get("message"):
+                meta["message"] = (
+                    "Modèle ML indisponible: fallback heuristique actif "
+                    "(trafic, météo, transit, horaire)."
+                )
+        return meta
+
     try:
         with open(META_PATH) as f:
             raw = json.load(f)
@@ -105,13 +134,13 @@ def get_model_meta() -> dict:
         if not isinstance(merged.get("features"), list):
             merged["features"] = []
 
-        return merged
+        return with_heuristic_fallback(merged)
     except FileNotFoundError:
-        return {
+        return with_heuristic_fallback({
             **defaults,
             "status": "not_trained",
             "message": "Modèle pas encore entraîné.",
-        }
+        })
     except Exception as exc:
         return {
             **defaults,

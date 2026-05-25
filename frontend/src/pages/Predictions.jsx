@@ -63,13 +63,14 @@ function ModelInfo({ meta }) {
   const nSynthetic = meta.n_synthetic ?? 0
   const nTotal = meta.n_total ?? (nReal + nSynthetic)
   const delayedPct = Number.isFinite(meta.delayed_pct) ? `${meta.delayed_pct.toFixed(1)}%` : '—'
-  const aucTrain = fmtFixed(meta.auc_train, 3)
+  const hasMlMetrics = Number.isFinite(meta.auc_train) || Number.isFinite(meta.cv_auc_mean)
+  const aucTrain = hasMlMetrics ? fmtFixed(meta.auc_train, 3) : 'Non applicable (baseline)'
   const attemptedOnly = meta.status === 'insufficient_real_data' || meta.status === 'not_trained'
   const modelLabel = meta.model_type ?? (attemptedOnly ? 'Non entraîné (mode réel strict)' : '—')
   const trainedAtLabel = attemptedOnly ? 'Dernière tentative auto' : 'Entraîné le'
   const aucCv = meta.cv_auc_mean != null
     ? `${fmtFixed(meta.cv_auc_mean, 3)} ± ${fmtFixed(meta.cv_auc_std ?? 0, 3)}`
-    : aucTrain
+    : (hasMlMetrics ? aucTrain : 'Non applicable (baseline)')
 
   return (
     <div className="model-info-grid" style={{ marginBottom: 24 }}>
